@@ -79,7 +79,13 @@ def load_generalized_model(model_name):
     tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
-    model = AutoModelForCausalLM.from_pretrained(model_name, trust_remote_code=True)
+    # Load in float16 with low_cpu_mem_usage to prevent memory OOM issues
+    model = AutoModelForCausalLM.from_pretrained(
+        model_name, 
+        trust_remote_code=True,
+        torch_dtype=torch.float16,
+        low_cpu_mem_usage=True
+    )
     model.eval()
     return model, tokenizer
 
