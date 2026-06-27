@@ -1,4 +1,4 @@
-# Paper 2 — The Geometry of Structural Routing in Transformers
+# Paper 2 — Conserved Perturbation Geometry in Transformer Representations
 
 **Author:** Amit Kumar
 **Status:** Proposal (pre-code)
@@ -15,17 +15,17 @@ Paper 2 asks: **How does representation influence propagate downstream?**
 
 ## Research Question
 
-> Do bridge heads define a unique, localized routing network, or does representation influence flow through a **conserved, low-dimensional routing geometry** shared by other heads, where bridge heads are simply distinguished by the magnitude of their perturbations?
+> Do bridge heads define a unique, localized routing network, or does representation influence flow through a **conserved, low-dimensional perturbation geometry** shared by other heads, where bridge heads are simply distinguished by the magnitude of their perturbations?
 
-If a shared routing geometry exists, we can characterize the downstream representation shift as a low-dimensional manifold (rather than discrete graph-like circuits) and analyze why bridge heads excite this geometry with substantially larger amplitudes.
+If a shared perturbation geometry exists, we can characterize the downstream representation shift as a low-dimensional subspace (rather than discrete graph-like circuits) and analyze why bridge heads excite this subspace with substantially larger amplitudes.
 
 ## Main Hypothesis
 
-Transformers possess a conserved, low-dimensional routing geometry downstream. Matched control heads exhibit a routing geometry with similar dimensionality and dominant direction. Bridge heads do not drive changes in a different direction; instead, they are structurally important because they drive **substantially larger perturbations** along that same shared dominant routing manifold.
+Across the transformer models examined here, downstream perturbations collapse onto a globally conserved dominant direction. Matched control heads exhibit a perturbation geometry with similar dimensionality and dominant direction. Bridge heads do not drive changes in a different direction; instead, they are structurally important because they drive **substantially larger perturbations** along that same shared dominant perturbation subspace.
 
 ## Null Hypothesis
 
-Influence is unstructured: downstream representations shift in completely different directions depending on which source head is ablated. There is no shared subspace, and SVD spectrums are indistinguishable from isotropic noise. Bridge heads do not drive significantly larger perturbations than matched controls along a shared manifold.
+Influence is unstructured: downstream representations shift in completely different directions depending on which source head is ablated. There is no shared subspace, and SVD spectrums are indistinguishable from isotropic noise. Bridge heads do not drive significantly larger perturbations than matched controls along a shared subspace.
 
 ---
 
