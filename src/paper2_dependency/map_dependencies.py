@@ -549,7 +549,7 @@ def experiment4_domain_conditional(model, tokenizer, source_heads, prefix=""):
     domain_matrices = {}
 
     for domain, texts in DOMAIN_PROBES.items():
-        print(f"\n  ── Domain: {domain} ──")
+        print(f"\n  -- Domain: {domain} --")
         I_by_text_d, _, targets = compute_influence_matrix(model, tokenizer, texts, source_heads)
         domain_data[domain] = I_by_text_d
         domain_matrices[domain] = I_by_text_d.mean(axis=0)
