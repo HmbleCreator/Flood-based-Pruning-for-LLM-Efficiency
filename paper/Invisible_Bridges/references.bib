@@ -1,0 +1,229 @@
+% references.bib
+% Place this file in the same Overleaf project folder as invisible_bridges.tex
+
+% ── Magnitude-based pruning ───────────────────────────────────────────────────
+
+@inproceedings{han2015learning,
+  author    = {Han, Song and Pool, Jeff and Tran, John and Dally, William J.},
+  title     = {Learning Both Weights and Connections for Efficient Neural Networks},
+  booktitle = {Advances in Neural Information Processing Systems 28 (NeurIPS)},
+  year      = {2015},
+  url       = {https://arxiv.org/abs/1506.02626}
+}
+
+@inproceedings{frankle2019lottery,
+  author    = {Frankle, Jonathan and Carlin, Michael},
+  title     = {The Lottery Ticket Hypothesis: Finding Sparse, Trainable Neural Networks},
+  booktitle = {Proceedings of the International Conference on Learning Representations (ICLR)},
+  year      = {2019},
+  url       = {https://arxiv.org/abs/1803.03635}
+}
+
+@inproceedings{frantar2023sparsegpt,
+  author    = {Frantar, Elias and Alistarh, Dan},
+  title     = {{SparseGPT}: Massive Language Models Can Be Accurately Pruned in One Shot},
+  booktitle = {Proceedings of the International Conference on Machine Learning (ICML)},
+  year      = {2023},
+  url       = {https://arxiv.org/abs/2301.00774}
+}
+
+@inproceedings{sun2024wanda,
+  author    = {Sun, Mingjie and Liu, Zhuang and Bair, Anna and Kolter, J. Zico},
+  title     = {A Simple and Effective Pruning Approach for Large Language Models},
+  booktitle = {Proceedings of the International Conference on Learning Representations (ICLR)},
+  year      = {2024},
+  url       = {https://arxiv.org/abs/2306.11695}
+}
+
+@inproceedings{evci2020rigging,
+  author    = {Evci, Utku and Gale, Trevor and Menick, Jacob and
+               Castro, Pablo Samuel and Elsen, Erich},
+  title     = {Rigging the Lottery: Making All Tickets Winners},
+  booktitle = {Proceedings of the International Conference on Machine Learning (ICML)},
+  year      = {2020},
+  url       = {https://arxiv.org/abs/1911.11134}
+}
+
+@inproceedings{tanaka2020synflow,
+  author    = {Tanaka, Hidenori and Kunin, Daniel and Yamins, Daniel L. K.
+               and Ganguli, Surya},
+  title     = {Pruning Neural Networks without Any Data by Iteratively
+               Conserving Synaptic Flow},
+  booktitle = {Advances in Neural Information Processing Systems 33 (NeurIPS)},
+  year      = {2020},
+  url       = {https://arxiv.org/abs/2006.05467}
+}
+
+@inproceedings{wang2020grasp,
+  author    = {Wang, Chaoqi and Zhang, Guodong and Grosse, Roger},
+  title     = {Picking Winning Tickets Before Training by Preserving Gradient Flow},
+  booktitle = {Proceedings of the International Conference on Learning
+               Representations (ICLR)},
+  year      = {2020},
+  url       = {https://arxiv.org/abs/2002.07376}
+}
+
+@inproceedings{ma2023llmpruner,
+  author    = {Ma, Xinyin and Fang, Gongfan and Wang, Xinchao},
+  title     = {{LLM-Pruner}: On the Structural Pruning of Large Language Models},
+  booktitle = {Advances in Neural Information Processing Systems 36 (NeurIPS)},
+  year      = {2023},
+  url       = {https://arxiv.org/abs/2305.11627}
+}
+
+% ── Foundation language models ────────────────────────────────────────────────
+
+@inproceedings{vaswani2017attention,
+  author    = {Vaswani, Ashish and Shazeer, Noam and Parmar, Niki and
+               Uszkoreit, Jakob and Jones, Llion and Gomez, Aidan N. and
+               Kaiser, {\L}ukasz and Polosukhin, Illia},
+  title     = {Attention Is All You Need},
+  booktitle = {Advances in Neural Information Processing Systems 30 (NeurIPS)},
+  year      = {2017},
+  url       = {https://arxiv.org/abs/1706.03762}
+}
+
+@techreport{radford2019gpt2,
+  author      = {Radford, Alec and Wu, Jeffrey and Child, Rewon and
+                 Luan, David and Amodei, Dario and Sutskever, Ilya},
+  title       = {Language Models Are Unsupervised Multitask Learners},
+  institution = {OpenAI},
+  year        = {2019},
+  url         = {https://cdn.openai.com/better-language-models/language_models_are_unsupervised_multitask_learners.pdf}
+}
+
+% ── Attention head analysis ───────────────────────────────────────────────────
+
+@inproceedings{michel2019sixteen,
+  author    = {Michel, Paul and Levy, Omer and Neubig, Graham},
+  title     = {Are Sixteen Heads Really Better than One?},
+  booktitle = {Advances in Neural Information Processing Systems 32 (NeurIPS)},
+  year      = {2019},
+  url       = {https://arxiv.org/abs/1905.10650}
+}
+
+@inproceedings{voita2019analyzing,
+  author    = {Voita, Elena and Talbot, David and Moiseev, Fedor and
+               Sennrich, Rico and Titov, Ivan},
+  title     = {Analyzing Multi-Head Self-Attention: Specialized Heads Do
+               the Heavy Lifting, the Rest Can Be Pruned},
+  booktitle = {Proceedings of the 57th Annual Meeting of the Association
+               for Computational Linguistics (ACL)},
+  year      = {2019},
+  url       = {https://arxiv.org/abs/1905.09418}
+}
+
+@inproceedings{xiao2024sinks,
+  author    = {Xiao, Guangxuan and Tian, Yuandong and Chen, Beidi and
+               Han, Song and Lewis, Mike},
+  title     = {Efficient Streaming Language Models with Attention Sinks},
+  booktitle = {Proceedings of the International Conference on Learning
+               Representations (ICLR)},
+  year      = {2024},
+  url       = {https://arxiv.org/abs/2309.17453}
+}
+
+% ── Mechanistic interpretability ──────────────────────────────────────────────
+
+@article{elhage2021mathematical,
+  author  = {Elhage, Nelson and Nanda, Neel and Olsson, Catherine and
+             Henighan, Tom and Joseph, Nicholas and Mann, Ben and
+             Askell, Amanda and Bai, Yifan and Chen, Anna and Conerly, Tom and
+             DasSarma, Nova and Drain, Dawn and Ganguli, Deep and
+             Hatfield-Dodds, Zac and Hernandez, Danny and Jones, Andy and
+             Kernion, Jackson and Lovitt, Liane and Ndousse, Kamal and
+             Amodei, Dario and Brown, Tom and Clark, Jack and Kaplan, Jared and
+             McCandlish, Sam and Olah, Chris},
+  title   = {A Mathematical Framework for Transformer Circuits},
+  journal = {Transformer Circuits Thread},
+  year    = {2021},
+  url     = {https://transformer-circuits.pub/2021/framework/index.html}
+}
+
+@article{olsson2022induction,
+  author  = {Olsson, Catherine and Elhage, Nelson and Nanda, Neel and
+             Joseph, Nicholas and DasSarma, Nova and Henighan, Tom and
+             Mann, Ben and Askell, Amanda and Bai, Yifan and Chen, Anna and
+             Conerly, Tom and Drain, Dawn and Ganguli, Deep and
+             Hatfield-Dodds, Zac and Hernandez, Danny and Jones, Andy and
+             Kernion, Jackson and Lovitt, Liane and Ndousse, Kamal and
+             Amodei, Dario and Brown, Tom and Clark, Jack and Kaplan, Jared and
+             McCandlish, Sam and Olah, Chris},
+  title   = {In-Context Learning and Induction Heads},
+  journal = {Transformer Circuits Thread},
+  year    = {2022},
+  url     = {https://transformer-circuits.pub/2022/in-context-learning-and-induction-heads/index.html}
+}
+
+@inproceedings{conmy2023acdc,
+  author    = {Conmy, Arthur and Mavor-Parker, Augustine N. and Lynch, Aengus and
+               Heimersheim, Stefan and Garriga-Alonso, Adri{\`a}},
+  title     = {Towards Automated Circuit Discovery for Mechanistic Interpretability},
+  booktitle = {Advances in Neural Information Processing Systems 36 (NeurIPS)},
+  year      = {2023},
+  url       = {https://arxiv.org/abs/2304.14997}
+}
+
+@inproceedings{meng2022rome,
+  author    = {Meng, Kevin and Bau, David and Andonian, Alex and Belinkov, Yonatan},
+  title     = {Locating and Editing Factual Associations in {GPT}},
+  booktitle = {Advances in Neural Information Processing Systems 35 (NeurIPS)},
+  year      = {2022},
+  url       = {https://arxiv.org/abs/2202.05262}
+}
+
+@inproceedings{kornblith2019cka,
+  author    = {Kornblith, Simon and Norouzi, Mohammad and Lee, Honglak and
+               Hinton, Geoffrey},
+  title     = {Similarity of Neural Network Representations Revisited},
+  booktitle = {Proceedings of the International Conference on Machine
+               Learning (ICML)},
+  year      = {2019},
+  url       = {https://arxiv.org/abs/1905.00414}
+}
+
+% ── Cross-disciplinary ────────────────────────────────────────────────────────
+
+@article{broadbent1957percolation,
+  author  = {Broadbent, Simon R. and Hammersley, John M.},
+  title   = {Percolation Processes: {I}. {C}rystals and Mazes},
+  journal = {Mathematical Proceedings of the Cambridge Philosophical Society},
+  volume  = {53},
+  number  = {3},
+  pages   = {629--641},
+  year    = {1957},
+  doi     = {10.1017/S0305004100032680}
+}
+
+@article{freeman1977betweenness,
+  author  = {Freeman, Linton C.},
+  title   = {A Set of Measures of Centrality Based on Betweenness},
+  journal = {Sociometry},
+  volume  = {40},
+  number  = {1},
+  pages   = {35--41},
+  year    = {1977},
+  doi     = {10.2307/3033543}
+}
+
+@article{haller2000lagrangian,
+  author  = {Haller, George and Yuan, Guocheng},
+  title   = {{Lagrangian} Coherent Structures and Mixing in
+             Two-Dimensional Turbulence},
+  journal = {Physica D: Nonlinear Phenomena},
+  volume  = {147},
+  number  = {3--4},
+  pages   = {352--370},
+  year    = {2000},
+  doi     = {10.1016/S0167-2789(00)00142-1}
+}
+
+@inproceedings{hunt1988eddies,
+  author    = {Hunt, Julian C. R. and Wray, Alan A. and Moin, Parviz},
+  title     = {Eddies, Streams, and Convergence Zones in Turbulent Flows},
+  booktitle = {Proceedings of the 1988 Summer Research Program},
+  pages     = {193--208},
+  year      = {1988},
+  organization = {Center for Turbulence Research, Stanford University},
+  url       = {https://ntrs.nasa.gov/citations/19890015184}
+}
