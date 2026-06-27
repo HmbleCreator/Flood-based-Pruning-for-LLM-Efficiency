@@ -797,8 +797,11 @@ def main():
     np.save(f"{prefix}cka_matrix.npy", C_mat)
     np.save(f"{prefix}I_by_text.npy", I_by_text_bridge)
     np.save(f"{prefix}C_by_text.npy", C_by_text_bridge)
+    np.save(f"{prefix}I_by_text_control.npy", I_by_text_control)
+    np.save(f"{prefix}C_by_text_control.npy", C_by_text_control)
     print(f"  Saved raw mean matrices -> {prefix}influence_matrix.npy, {prefix}cka_matrix.npy")
     print(f"  Saved raw 3D observations -> {prefix}I_by_text.npy, {prefix}C_by_text.npy")
+    print(f"  Saved raw control observations -> {prefix}I_by_text_control.npy, {prefix}C_by_text_control.npy")
 
     # ── Experiment 1 Baseline Comparison ──
     print("\n" + "=" * 65)
