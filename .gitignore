@@ -4,3 +4,7 @@ paper/contexts/
 # Ignore both model files
 gpt2_local/model.safetensors
 gpt2_medium_local/model.safetensors
+
+# Python bytecode
+__pycache__/
+*.pyc
