@@ -276,6 +276,7 @@ def compute_influence_matrix(model, tokenizer, texts, source_heads):
 
 def select_control_heads(model, source_heads):
     n_heads = model.config.n_head
+    n_layers = model.config.n_layer
     control_heads = []
     
     by_layer = defaultdict(set)
@@ -290,11 +291,15 @@ def select_control_heads(model, source_heads):
             for h in chosen:
                 control_heads.append((l, int(h)))
         else:
-            for h in range(n_heads):
-                if (l, h) not in source_heads:
-                    control_heads.append((l, h))
-                    if len(control_heads) == len(source_heads):
-                        break
+            # Fallback: Pick from other layers
+            other_layer = (l + 1) % n_layers
+            while len(control_heads) < len(source_heads):
+                for h in range(n_heads):
+                    if (other_layer, h) not in source_heads:
+                        control_heads.append((other_layer, h))
+                        if len(control_heads) == len(source_heads):
+                            break
+                other_layer = (other_layer + 1) % n_layers
     return control_heads
 
 
@@ -375,7 +380,7 @@ def analyze_influence_spectrum(I_mat, I_by_text, prefix=""):
         rand_mean = S_rand_dist[:, i].mean()
         rand_95_low = np.percentile(S_rand_dist[:, i], 2.5)
         rand_95_high = np.percentile(S_rand_dist[:, i], 97.5)
-        print(f"    σ_{i+1:02d} = {S[i]:.4f} | Shuffled mean: {rand_mean:.4f} [95% CI: {rand_95_low:.4f}, {rand_95_high:.4f}] | p = {p_values[i]:.4f}")
+        print(f"    s_{i+1:02d} = {S[i]:.4f} | Shuffled mean: {rand_mean:.4f} [95% CI: {rand_95_low:.4f}, {rand_95_high:.4f}] | p = {p_values[i]:.4f}")
 
     fig, axes = plt.subplots(1, 2, figsize=(12, 4.5))
 
