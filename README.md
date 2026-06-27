@@ -6,10 +6,13 @@
 
 ## Research Roadmap
 
-*   **[v1.0] Invisible Bridges (Paper 1)**: Discovery of structurally critical attention heads and downstream sensitivity analysis.
-*   **[Planned] Flood Pruning (Paper 2)**: Designing a bridge-guided pruning algorithm.
-*   **[Planned] Adaptive Bridge Recovery (Paper 3)**: Researching bridge-guided recovery and network compression.
-*   **[Planned] Scaling to Modern LLMs**: Extending findings to larger open-source models (e.g., Llama, Mistral, Gemma).
+| Paper | Title | Question | Status |
+|---|---|---|---|
+| 1 | **Invisible Bridges** | *Which heads matter?* | ✅ `v1.0-invisible-bridges` |
+| 2 | **Bridge Dependency Networks** | *Who depends on whom?* | ⬜ Proposal ready |
+| 3 | **Flood Pruning** | *Can dependency-aware pruning beat existing methods?* | ⬜ Planned |
+| 4 | **Bridge-Regularized Training** | *Can we train models with cleaner routing?* | ⬜ Planned |
+| 5 | **Scaling Laws of Structural Routing** | *How does bridge density evolve with scale?* | ⬜ Planned |
 
 ---
 
