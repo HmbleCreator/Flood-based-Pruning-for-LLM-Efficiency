@@ -1,4 +1,4 @@
-# Paper 2 — Mapping Bridge Dependency Networks in Transformers
+# Paper 2 — The Geometry of Structural Routing in Transformers
 
 **Author:** Amit Kumar
 **Status:** Proposal (pre-code)
@@ -9,23 +9,23 @@
 
 Paper 1 asked: *Which heads matter?*
 
-Paper 2 asks: **Who depends on whom?**
+Paper 2 asks: **How does representation influence propagate downstream?**
 
 ---
 
 ## Research Question
 
-> Invisible bridge heads cause cascading downstream disruption when ablated. Is this disruption **sparse and structured** — concentrated on specific downstream heads — or **diffuse and uniform** — spread evenly across all downstream representations?
+> Do bridge heads define a unique, localized routing network, or does representation influence flow through a **conserved, low-dimensional routing geometry** shared by other heads, where bridge heads are simply distinguished by the magnitude of their perturbations?
 
-If structured, the dependency relationships naturally induce a directed network whose topology predicts ablation damage beyond the scalar bridge score alone.
+If a shared routing geometry exists, we can characterize the downstream representation shift as a low-dimensional manifold (rather than discrete graph-like circuits) and analyze why bridge heads excite this geometry with substantially larger amplitudes.
 
 ## Main Hypothesis
 
-Ablating a bridge head disproportionately disrupts a **small, identifiable subset** of downstream heads rather than uniformly degrading all downstream representations. These pairwise dependencies are sparse, modular, and exhibit low-rank structure — properties consistent with discrete routing pathways through the transformer.
+Transformers possess a conserved, low-dimensional routing geometry downstream. Matched control heads exhibit a routing geometry with similar dimensionality and dominant direction. Bridge heads do not drive changes in a different direction; instead, they are structurally important because they drive **substantially larger perturbations** along that same shared dominant routing manifold.
 
 ## Null Hypothesis
 
-Bridge head importance is **diffuse**: ablating a bridge head shifts all downstream head representations approximately equally. The pairwise influence matrix is dense and full-rank, with no modular structure. Dependency relationships add no predictive power beyond the scalar bridge score from Paper 1.
+Influence is unstructured: downstream representations shift in completely different directions depending on which source head is ablated. There is no shared subspace, and SVD spectrums are indistinguishable from isotropic noise. Bridge heads do not drive significantly larger perturbations than matched controls along a shared manifold.
 
 ---
 
@@ -86,13 +86,16 @@ Compare the influence drop $I(u, v) - I(u, v \mid w)$ using the **best, random, 
 
 **Falsification:** If the best mediators do not show significantly greater drop distributions than random or worst mediators, the observed representation shifts do not support a structured mediation hierarchy.
 
----
-
 ## Stage 2 — Dependency Network Analysis
 
 *Only entered if Stage 1 establishes sparse, structured dependencies.*
 
-> The empirical influence matrix exhibits significant sparsity and modular structure. We therefore model the pairwise dependencies as a **directed dependency network**, where heads are nodes and edges are weighted by influence magnitude.
+> Having established a shared, low-dimensional routing manifold, Stage 2 investigates how the network's directed topology explains this geometry:
+> 1. Which heads inject representations into the dominant 1D subspace, and which heads receive from it?
+> 2. Do distinct network communities share the same routing manifold, or do they divide the subspace?
+> 3. Does the topological graph connectivity explain *why* bridge heads drive significantly larger perturbations (singular values) than matched control heads?
+
+We model these interactions as a **directed dependency network**, where heads are nodes and edges are weighted by influence magnitude.
 
 ### Experiment 5 — Network Topology
 
