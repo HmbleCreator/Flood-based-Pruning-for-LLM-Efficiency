@@ -1,16 +1,17 @@
 """
-Map All Layers Routing Geometry (Refined)
-=========================================
+Map All Layers Routing Geometry (Refined V2)
+============================================
 Computes the downstream routing geometry (PR, average influence, s1) 
-for EVERY layer in the model to determine if:
-  1. The low-dimensional routing geometry is a global architectural property.
-  2. The bridge layers act as dominant peaks of information flow (s1 and influence magnitude).
+for EVERY layer in the model to characterize global representation routing.
 
 Refinements implemented:
-  - Normalized s1 (Dominance s1/sum(s) & Variance Explained s1^2/sum(s^2))
-  - Bootstrap uncertainty (95% CI bands for all layer-wise curves)
-  - 2D Heatmap of Source Layer vs. Target Layer average influence
-  - Repeated permutation baseline comparison across all layers
+  - Combined SVD metric helper to reduce decompositions.
+  - Dimensionless SVD strength metrics (Variance Explained).
+  - Frobenius norm ("routing energy") plotted alongside mean influence.
+  - Bootstrap uncertainty (95% CI bands for all layer-wise curves, seeded RNG).
+  - Observed-to-Permuted ratio analysis.
+  - Two heatmaps: Mean and Max Source->Target layer average influence.
+  - Mathematically clean permutation shuffling.
 """
 
 import argparse
@@ -20,7 +21,6 @@ import numpy as np
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-from collections import defaultdict
 from transformers import GPT2LMHeadModel, GPT2Tokenizer
 
 # ── Probe texts (same domains as Paper 1 & map_dependencies.py) ─────────────────
@@ -105,7 +105,7 @@ def _capture_head_outputs(model, tokenizer, text, max_length=64):
 
     return captures
 
-def _capture_head_outputs_ablated(model, tokenizer, text, ablate_layer, ablate_head, max_length=64):
+def _capture_head_outputs_ablated(model, tokenizer, text, ablace_layer, ablate_head, max_length=64):
     n_layers = model.config.n_layer
     n_heads  = model.config.n_head
     d_head   = model.config.n_embd // n_heads
@@ -121,7 +121,7 @@ def _capture_head_outputs_ablated(model, tokenizer, text, ablate_layer, ablate_h
             return (x,)
         return ablation_hook
 
-    hk = model.transformer.h[ablate_layer].attn.c_proj.register_forward_pre_hook(
+    hk = model.transformer.h[ablace_layer].attn.c_proj.register_forward_pre_hook(
         make_ablation_hook(a_s, a_e)
     )
     hooks.append(hk)
@@ -147,66 +147,55 @@ def _capture_head_outputs_ablated(model, tokenizer, text, ablate_layer, ablate_h
 
     return captures
 
-# ── Geometry Metrics ──
+# ── Refactored SVD Metric Helper ──
 
-def get_pr(mat):
-    _, S, _ = np.linalg.svd(mat, full_matrices=False)
-    return float((S.sum() ** 2) / ((S ** 2).sum() + 1e-12))
-
-def get_s1(mat):
-    _, S, _ = np.linalg.svd(mat, full_matrices=False)
-    return float(S[0]) if len(S) > 0 else 0.0
-
-def get_variance_explained(mat):
+def compute_svd_metrics(mat):
     _, S, _ = np.linalg.svd(mat, full_matrices=False)
     if len(S) == 0 or (S**2).sum() == 0:
-        return 0.0
-    return float((S[0] ** 2) / (S ** 2).sum() * 100)
+        return 0.0, 0.0, 0.0, 0.0
+    pr = float((S.sum() ** 2) / ((S ** 2).sum() + 1e-12))
+    var_exp = float((S[0] ** 2) / (S ** 2).sum() * 100)
+    dominance = float(S[0] / (S.sum() + 1e-12))
+    fro = float(np.linalg.norm(mat, "fro"))
+    return pr, var_exp, dominance, fro
 
-def bootstrap_layer_metrics(I_by_text_l, num_bootstraps=200):
+# ── Statistical Helpers ──
+
+def bootstrap_layer_metrics(I_by_text_l, num_bootstraps=200, seed=42):
+    rng = np.random.default_rng(seed)
     n_texts = I_by_text_l.shape[0]
     pr_vals = []
     var_vals = []
     mean_vals = []
+    fro_vals = []
     
     for _ in range(num_bootstraps):
-        idx = np.random.choice(n_texts, size=n_texts, replace=True)
+        idx = rng.choice(n_texts, size=n_texts, replace=True)
         mat = I_by_text_l[idx].mean(axis=0)
+        pr, var_exp, _, fro = compute_svd_metrics(mat)
         
-        _, S, _ = np.linalg.svd(mat, full_matrices=False)
-        if len(S) > 0:
-            pr = (S.sum() ** 2) / ((S ** 2).sum() + 1e-12)
-            var_exp = (S[0] ** 2) / ((S ** 2).sum() + 1e-12) * 100
-        else:
-            pr, var_exp = 0.0, 0.0
-            
         pr_vals.append(pr)
         var_vals.append(var_exp)
         mean_vals.append(mat.mean())
+        fro_vals.append(fro)
         
-    ci = lambda vals: (np.percentile(vals, 2.5), np.percentile(vals, 97.5))
-    return ci(pr_vals), ci(var_vals), ci(mean_vals)
+    ci = lambda vals: (float(np.percentile(vals, 2.5)), float(np.percentile(vals, 97.5)))
+    return ci(pr_vals), ci(var_vals), ci(mean_vals), ci(fro_vals)
 
-def compute_permutation_baselines(I_mat, num_perms=100):
+def compute_permutation_baselines(I_mat, num_perms=100, seed=42):
+    rng = np.random.default_rng(seed)
     pr_vals = []
     var_vals = []
-    flat = I_mat.copy().ravel()
     for _ in range(num_perms):
-        np.random.shuffle(flat)
-        sh_mat = flat.reshape(I_mat.shape)
-        _, S, _ = np.linalg.svd(sh_mat, full_matrices=False)
-        if len(S) > 0:
-            pr = (S.sum() ** 2) / ((S ** 2).sum() + 1e-12)
-            var_exp = (S[0] ** 2) / ((S ** 2).sum() + 1e-12) * 100
-        else:
-            pr, var_exp = 0.0, 0.0
+        sh_mat = rng.permutation(I_mat.ravel()).reshape(I_mat.shape)
+        pr, var_exp, _, _ = compute_svd_metrics(sh_mat)
         pr_vals.append(pr)
         var_vals.append(var_exp)
     return float(np.mean(pr_vals)), float(np.mean(var_vals))
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Paper 2: Map downstream routing geometry for all layers (Refined)"
+        description="Paper 2: Map downstream routing geometry for all layers (Refined V2)"
     )
     parser.add_argument("--model_path", type=str, default=None,
                         help="Path to local model weights")
@@ -239,14 +228,19 @@ def main():
     layers_mean_inf = []
     layers_mean_inf_ci_low = []
     layers_mean_inf_ci_high = []
+
+    layers_fro = []
+    layers_fro_ci_low = []
+    layers_fro_ci_high = []
     
     layers_pr_perm = []
     layers_var_perm = []
 
     layers_x = list(range(n_layers - 1))  # Last layer has no downstream targets
     
-    # 2D Heatmap: Source Layer vs. Target Layer Influence
-    source_target_influence = np.zeros((n_layers, n_layers))
+    # 2D Heatmaps: Source Layer vs. Target Layer (Mean and Max)
+    source_target_mean = np.zeros((n_layers, n_layers))
+    source_target_max = np.zeros((n_layers, n_layers))
 
     print(f"\n  Running analysis for layers 0 to {n_layers - 2}...")
     
@@ -272,20 +266,22 @@ def main():
                         
         I_mat = I_by_text.mean(axis=0)
         
-        # 1. Store Source-Target Layer Heatmap values (distance analysis)
+        # Store Source-Target Layer Heatmap values (mean and max)
         for tgt_l in range(l + 1, n_layers):
             tgt_indices = [idx for idx, (tl, th) in enumerate(all_targets) if tl == tgt_l]
-            source_target_influence[l, tgt_l] = I_by_text[:, :, tgt_indices].mean()
+            # Mean
+            source_target_mean[l, tgt_l] = I_by_text[:, :, tgt_indices].mean()
+            # Max
+            source_target_max[l, tgt_l] = float(np.max(I_by_text[:, :, tgt_indices].mean(axis=0)))
 
-        # 2. Point Estimates
-        pr = get_pr(I_mat)
-        var_exp = get_variance_explained(I_mat)
+        # SVD Point Estimates
+        pr, var_exp, _, fro = compute_svd_metrics(I_mat)
         mean_inf = I_mat.mean()
         
-        # 3. Bootstrap CIs
-        ci_pr, ci_var, ci_mean = bootstrap_layer_metrics(I_by_text, num_bootstraps=200)
+        # Bootstrap CIs
+        ci_pr, ci_var, ci_mean, ci_fro = bootstrap_layer_metrics(I_by_text, num_bootstraps=200)
         
-        # 4. Permutation Baselines
+        # Permutation Baselines
         perm_pr, perm_var = compute_permutation_baselines(I_mat, num_perms=100)
 
         # Append data
@@ -300,12 +296,17 @@ def main():
         layers_mean_inf.append(mean_inf)
         layers_mean_inf_ci_low.append(ci_mean[0])
         layers_mean_inf_ci_high.append(ci_mean[1])
+
+        layers_fro.append(fro)
+        layers_fro_ci_low.append(ci_fro[0])
+        layers_fro_ci_high.append(ci_fro[1])
         
         layers_pr_perm.append(perm_pr)
         layers_var_perm.append(perm_var)
         
         print(f"    Layer {l:02d}/{n_layers - 2} | "
               f"Mean Inf: {mean_inf:.4f} [{ci_mean[0]:.4f}, {ci_mean[1]:.4f}] | "
+              f"Fro Norm: {fro:.3f} [{ci_fro[0]:.3f}, {ci_fro[1]:.3f}] | "
               f"PR: {pr:.2f} [{ci_pr[0]:.2f}, {ci_pr[1]:.2f} (perm: {perm_pr:.2f})] | "
               f"s1 Var Explained: {var_exp:.1f}% [{ci_var[0]:.1f}%, {ci_var[1]:.1f}% (perm: {perm_var:.1f}%)]")
 
@@ -313,18 +314,32 @@ def main():
     np.save(f"{prefix}all_layers_pr.npy", np.array(layers_pr))
     np.save(f"{prefix}all_layers_var_exp.npy", np.array(layers_var_exp))
     np.save(f"{prefix}all_layers_mean_inf.npy", np.array(layers_mean_inf))
-    np.save(f"{prefix}source_target_heatmap.npy", source_target_influence)
+    np.save(f"{prefix}all_layers_fro.npy", np.array(layers_fro))
+    np.save(f"{prefix}source_target_heatmap_mean.npy", source_target_mean)
+    np.save(f"{prefix}source_target_heatmap_max.npy", source_target_max)
 
     # Plot panel figure
     fig, axes = plt.subplots(1, 3, figsize=(18, 5))
 
-    # Plot 1: Layer vs. Mean Downstream Influence
-    axes[0].plot(layers_x, layers_mean_inf, "o-", color="darkorange", linewidth=2, label="Observed")
-    axes[0].fill_between(layers_x, layers_mean_inf_ci_low, layers_mean_inf_ci_high, color="darkorange", alpha=0.15)
+    # Plot 1: Layer vs. Routing Magnitude & Energy (Mean Influence + Frobenius Norm)
+    color_inf = "darkorange"
+    color_fro = "purple"
+    
+    axes[0].plot(layers_x, layers_mean_inf, "o-", color=color_inf, linewidth=2, label="Mean Influence")
+    axes[0].fill_between(layers_x, layers_mean_inf_ci_low, layers_mean_inf_ci_high, color=color_inf, alpha=0.15)
     axes[0].set_xlabel("Source Layer Index")
-    axes[0].set_ylabel("Average Downstream Influence")
-    axes[0].set_title("Layer-wise Downstream Influence Magnitude")
+    axes[0].set_ylabel("Average Downstream Influence", color=color_inf)
+    axes[0].tick_params(axis='y', labelcolor=color_inf)
     axes[0].grid(True, linestyle=":", alpha=0.6)
+    
+    # Twin axis for Frobenius Norm
+    ax0_twin = axes[0].twinx()
+    ax0_twin.plot(layers_x, layers_fro, "x-", color=color_fro, linewidth=2, label="Frobenius Energy")
+    ax0_twin.fill_between(layers_x, layers_fro_ci_low, layers_fro_ci_high, color=color_fro, alpha=0.15)
+    ax0_twin.set_ylabel("Frobenius Norm (Routing Energy)", color=color_fro)
+    ax0_twin.tick_params(axis='y', labelcolor=color_fro)
+    
+    axes[0].set_title("Routing Magnitude & Total Energy")
 
     # Plot 2: Layer vs. Dominance (% Variance Explained by s1)
     axes[1].plot(layers_x, layers_var_exp, "o-", color="red", linewidth=2, label="Observed")
@@ -332,7 +347,7 @@ def main():
     axes[1].fill_between(layers_x, layers_var_exp_ci_low, layers_var_exp_ci_high, color="red", alpha=0.15)
     axes[1].set_xlabel("Source Layer Index")
     axes[1].set_ylabel("s1 Variance Explained (%)")
-    axes[1].set_title("s1 Variance Explained (Dimensionless Routing Strength)")
+    axes[1].set_title("s1 Variance Explained (Routing Dominance)")
     axes[1].legend()
     axes[1].grid(True, linestyle=":", alpha=0.6)
 
@@ -352,29 +367,44 @@ def main():
     plt.savefig(panel_plot_name, dpi=150)
     plt.close()
 
-    # Plot 2D Source Layer vs. Target Layer Heatmap
-    plt.figure(figsize=(7.5, 6))
-    # Mask out values below or on diagonal since influence flows only downstream
-    mask_heatmap = np.zeros_like(source_target_influence, dtype=bool)
+    # Mask for heatmaps
+    mask_heatmap = np.zeros_like(source_target_mean, dtype=bool)
     for r in range(n_layers):
         for c in range(n_layers):
             if c <= r:
                 mask_heatmap[r, c] = True
-    masked_influence = np.ma.masked_where(mask_heatmap, source_target_influence)
-    
-    im = plt.imshow(masked_influence, aspect='equal', cmap='YlOrRd', interpolation='nearest')
+                
+    masked_mean = np.ma.masked_where(mask_heatmap, source_target_mean)
+    masked_max = np.ma.masked_where(mask_heatmap, source_target_max)
+
+    # Plot 2D Source Layer vs. Target Layer Mean Heatmap
+    plt.figure(figsize=(7.5, 6))
+    im_mean = plt.imshow(masked_mean, aspect='equal', cmap='YlOrRd', interpolation='nearest')
     plt.xlabel("Target Layer Index")
     plt.ylabel("Source Layer Index")
-    plt.title(f"Source-to-Target Layer Average Influence Heatmap: {prefix.capitalize()} Model")
-    plt.colorbar(im, fraction=0.046, pad=0.04)
+    plt.title(f"Source-to-Target Layer Mean Influence Heatmap: {prefix.capitalize()} Model")
+    plt.colorbar(im_mean, fraction=0.046, pad=0.04)
     plt.tight_layout()
-    heatmap_plot_name = f"{prefix}source_target_heatmap.png"
-    plt.savefig(heatmap_plot_name, dpi=150)
+    heatmap_mean_name = f"{prefix}source_target_heatmap_mean.png"
+    plt.savefig(heatmap_mean_name, dpi=150)
+    plt.close()
+
+    # Plot 2D Source Layer vs. Target Layer Max Heatmap
+    plt.figure(figsize=(7.5, 6))
+    im_max = plt.imshow(masked_max, aspect='equal', cmap='YlOrRd', interpolation='nearest')
+    plt.xlabel("Target Layer Index")
+    plt.ylabel("Source Layer Index")
+    plt.title(f"Source-to-Target Layer Max Influence Heatmap: {prefix.capitalize()} Model")
+    plt.colorbar(im_max, fraction=0.046, pad=0.04)
+    plt.tight_layout()
+    heatmap_max_name = f"{prefix}source_target_heatmap_max.png"
+    plt.savefig(heatmap_max_name, dpi=150)
     plt.close()
 
     print("\n" + "=" * 70)
     print(f"  Saved global geometry plot -> {panel_plot_name}")
-    print(f"  Saved source-target layer heatmap -> {heatmap_plot_name}")
+    print(f"  Saved mean heatmap -> {heatmap_mean_name}")
+    print(f"  Saved max heatmap -> {heatmap_max_name}")
     print("=" * 70)
 
 if __name__ == "__main__":
