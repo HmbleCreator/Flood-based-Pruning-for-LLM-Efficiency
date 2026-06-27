@@ -340,10 +340,20 @@ def main():
                 cos_sim = 0.0
             alignment_matrix[i, j] = cos_sim
 
-    # Average alignment across upper triangle
+    # Average alignment across off-diagonal upper triangle (excludes the 1.0 diagonal)
     triu_indices = np.triu_indices(n_layers - 1, k=1)
-    mean_alignment = alignment_matrix[triu_indices].mean()
-    print(f"    Global Average Perturbation Subspace Alignment (Cosine Similarity): {mean_alignment:.4f}")
+    off_diag_vals = alignment_matrix[triu_indices]
+    mean_alignment = off_diag_vals.mean()
+    min_alignment = off_diag_vals.min()
+    max_alignment = off_diag_vals.max()
+    p25 = np.percentile(off_diag_vals, 25)
+    p75 = np.percentile(off_diag_vals, 75)
+    
+    print(f"    Global Subspace Alignment (Off-Diagonal Cosine Similarity):")
+    print(f"      Mean: {mean_alignment:.4f}")
+    print(f"      Min:  {min_alignment:.4f}")
+    print(f"      Max:  {max_alignment:.4f}")
+    print(f"      IQR:  [{p25:.4f}, {p75:.4f}]")
 
     # Save data arrays
     np.save(f"{prefix}all_layers_pr.npy", np.array(layers_pr))
