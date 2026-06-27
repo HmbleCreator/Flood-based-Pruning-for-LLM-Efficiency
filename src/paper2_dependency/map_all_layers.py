@@ -1,17 +1,14 @@
 """
-Map All Layers Routing Geometry (Refined V2)
+Map All Layers Routing Geometry (Refined V3)
 ============================================
 Computes the downstream routing geometry (PR, average influence, s1) 
 for EVERY layer in the model to characterize global representation routing.
 
-Refinements implemented:
-  - Combined SVD metric helper to reduce decompositions.
-  - Dimensionless SVD strength metrics (Variance Explained).
-  - Frobenius norm ("routing energy") plotted alongside mean influence.
-  - Bootstrap uncertainty (95% CI bands for all layer-wise curves, seeded RNG).
-  - Observed-to-Permuted ratio analysis.
-  - Two heatmaps: Mean and Max Source->Target layer average influence.
-  - Mathematically clean permutation shuffling.
+Refinements in V3:
+  - Added global subspace alignment: Cosine similarity of first right singular vectors
+    between every pair of source layers (slicing to project onto shared downstream target spaces).
+  - Plots the layer-by-layer alignment matrix as a 2D heatmap.
+  - Reports average alignment across all layer pairs.
 """
 
 import argparse
@@ -150,14 +147,14 @@ def _capture_head_outputs_ablated(model, tokenizer, text, ablace_layer, ablate_h
 # ── Refactored SVD Metric Helper ──
 
 def compute_svd_metrics(mat):
-    _, S, _ = np.linalg.svd(mat, full_matrices=False)
+    u, S, Vt = np.linalg.svd(mat, full_matrices=False)
     if len(S) == 0 or (S**2).sum() == 0:
-        return 0.0, 0.0, 0.0, 0.0
+        return 0.0, 0.0, 0.0, 0.0, None
     pr = float((S.sum() ** 2) / ((S ** 2).sum() + 1e-12))
     var_exp = float((S[0] ** 2) / (S ** 2).sum() * 100)
     dominance = float(S[0] / (S.sum() + 1e-12))
     fro = float(np.linalg.norm(mat, "fro"))
-    return pr, var_exp, dominance, fro
+    return pr, var_exp, dominance, fro, Vt[0, :].copy()
 
 # ── Statistical Helpers ──
 
@@ -172,7 +169,7 @@ def bootstrap_layer_metrics(I_by_text_l, num_bootstraps=200, seed=42):
     for _ in range(num_bootstraps):
         idx = rng.choice(n_texts, size=n_texts, replace=True)
         mat = I_by_text_l[idx].mean(axis=0)
-        pr, var_exp, _, fro = compute_svd_metrics(mat)
+        pr, var_exp, _, fro, _ = compute_svd_metrics(mat)
         
         pr_vals.append(pr)
         var_vals.append(var_exp)
@@ -188,14 +185,14 @@ def compute_permutation_baselines(I_mat, num_perms=100, seed=42):
     var_vals = []
     for _ in range(num_perms):
         sh_mat = rng.permutation(I_mat.ravel()).reshape(I_mat.shape)
-        pr, var_exp, _, _ = compute_svd_metrics(sh_mat)
+        pr, var_exp, _, _, _ = compute_svd_metrics(sh_mat)
         pr_vals.append(pr)
         var_vals.append(var_exp)
     return float(np.mean(pr_vals)), float(np.mean(var_vals))
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Paper 2: Map downstream routing geometry for all layers (Refined V2)"
+        description="Paper 2: Map downstream routing geometry for all layers (Refined V3)"
     )
     parser.add_argument("--model_path", type=str, default=None,
                         help="Path to local model weights")
@@ -238,6 +235,10 @@ def main():
 
     layers_x = list(range(n_layers - 1))  # Last layer has no downstream targets
     
+    # Storage for subspace alignment calculation
+    v1_dict = {}
+    targets_dict = {}
+
     # 2D Heatmaps: Source Layer vs. Target Layer (Mean and Max)
     source_target_mean = np.zeros((n_layers, n_layers))
     source_target_max = np.zeros((n_layers, n_layers))
@@ -247,6 +248,7 @@ def main():
     for l in layers_x:
         source_heads = [(l, h) for h in range(n_heads)]
         all_targets = [(tgt_l, tgt_h) for tgt_l in range(l + 1, n_layers) for tgt_h in range(n_heads)]
+        targets_dict[l] = all_targets
         
         # Temporary storage for text observations
         I_by_text = np.zeros((len(all_texts), n_heads, len(all_targets)))
@@ -269,13 +271,12 @@ def main():
         # Store Source-Target Layer Heatmap values (mean and max)
         for tgt_l in range(l + 1, n_layers):
             tgt_indices = [idx for idx, (tl, th) in enumerate(all_targets) if tl == tgt_l]
-            # Mean
             source_target_mean[l, tgt_l] = I_by_text[:, :, tgt_indices].mean()
-            # Max
             source_target_max[l, tgt_l] = float(np.max(I_by_text[:, :, tgt_indices].mean(axis=0)))
 
         # SVD Point Estimates
-        pr, var_exp, _, fro = compute_svd_metrics(I_mat)
+        pr, var_exp, _, fro, v1 = compute_svd_metrics(I_mat)
+        v1_dict[l] = v1
         mean_inf = I_mat.mean()
         
         # Bootstrap CIs
@@ -310,6 +311,40 @@ def main():
               f"PR: {pr:.2f} [{ci_pr[0]:.2f}, {ci_pr[1]:.2f} (perm: {perm_pr:.2f})] | "
               f"s1 Var Explained: {var_exp:.1f}% [{ci_var[0]:.1f}%, {ci_var[1]:.1f}% (perm: {perm_var:.1f}%)]")
 
+    # ── 5. Global Subspace Alignment Calculation ──
+    print("\n  Calculating global subspace alignment (layer-by-layer)...")
+    alignment_matrix = np.zeros((n_layers - 1, n_layers - 1))
+    
+    for i in range(n_layers - 1):
+        for j in range(n_layers - 1):
+            if i == j:
+                alignment_matrix[i, j] = 1.0
+                continue
+            la, lb = min(i, j), max(i, j)
+            targets_a = targets_dict[la]
+            targets_b = targets_dict[lb]
+            
+            # targets_b is a subset of targets_a since lb > la
+            shared_t = targets_b
+            indices_a = [targets_a.index(t) for t in shared_t]
+            
+            v1_a_shared = v1_dict[la][indices_a]
+            v1_b_shared = v1_dict[lb]
+            
+            norm_a = np.linalg.norm(v1_a_shared)
+            norm_b = np.linalg.norm(v1_b_shared)
+            
+            if norm_a > 1e-12 and norm_b > 1e-12:
+                cos_sim = float(np.abs(np.dot(v1_a_shared, v1_b_shared)) / (norm_a * norm_b))
+            else:
+                cos_sim = 0.0
+            alignment_matrix[i, j] = cos_sim
+
+    # Average alignment across upper triangle
+    triu_indices = np.triu_indices(n_layers - 1, k=1)
+    mean_alignment = alignment_matrix[triu_indices].mean()
+    print(f"    Global Average Perturbation Subspace Alignment (Cosine Similarity): {mean_alignment:.4f}")
+
     # Save data arrays
     np.save(f"{prefix}all_layers_pr.npy", np.array(layers_pr))
     np.save(f"{prefix}all_layers_var_exp.npy", np.array(layers_var_exp))
@@ -317,11 +352,12 @@ def main():
     np.save(f"{prefix}all_layers_fro.npy", np.array(layers_fro))
     np.save(f"{prefix}source_target_heatmap_mean.npy", source_target_mean)
     np.save(f"{prefix}source_target_heatmap_max.npy", source_target_max)
+    np.save(f"{prefix}global_subspace_alignment.npy", alignment_matrix)
 
     # Plot panel figure
     fig, axes = plt.subplots(1, 3, figsize=(18, 5))
 
-    # Plot 1: Layer vs. Routing Magnitude & Energy (Mean Influence + Frobenius Norm)
+    # Plot 1: Layer vs. Routing Magnitude & Energy
     color_inf = "darkorange"
     color_fro = "purple"
     
@@ -332,7 +368,6 @@ def main():
     axes[0].tick_params(axis='y', labelcolor=color_inf)
     axes[0].grid(True, linestyle=":", alpha=0.6)
     
-    # Twin axis for Frobenius Norm
     ax0_twin = axes[0].twinx()
     ax0_twin.plot(layers_x, layers_fro, "x-", color=color_fro, linewidth=2, label="Frobenius Energy")
     ax0_twin.fill_between(layers_x, layers_fro_ci_low, layers_fro_ci_high, color=color_fro, alpha=0.15)
@@ -341,7 +376,7 @@ def main():
     
     axes[0].set_title("Routing Magnitude & Total Energy")
 
-    # Plot 2: Layer vs. Dominance (% Variance Explained by s1)
+    # Plot 2: Layer vs. Dominance
     axes[1].plot(layers_x, layers_var_exp, "o-", color="red", linewidth=2, label="Observed")
     axes[1].plot(layers_x, layers_var_perm, "x--", color="gray", linewidth=1.5, label="Permuted")
     axes[1].fill_between(layers_x, layers_var_exp_ci_low, layers_var_exp_ci_high, color="red", alpha=0.15)
@@ -351,7 +386,7 @@ def main():
     axes[1].legend()
     axes[1].grid(True, linestyle=":", alpha=0.6)
 
-    # Plot 3: Layer vs. PR (Effective Routing Dimensionality)
+    # Plot 3: Layer vs. PR
     axes[2].plot(layers_x, layers_pr, "o-", color="steelblue", linewidth=2, label="Observed")
     axes[2].plot(layers_x, layers_pr_perm, "x--", color="gray", linewidth=1.5, label="Permuted")
     axes[2].fill_between(layers_x, layers_pr_ci_low, layers_pr_ci_high, color="steelblue", alpha=0.15)
@@ -377,7 +412,7 @@ def main():
     masked_mean = np.ma.masked_where(mask_heatmap, source_target_mean)
     masked_max = np.ma.masked_where(mask_heatmap, source_target_max)
 
-    # Plot 2D Source Layer vs. Target Layer Mean Heatmap
+    # Plot Mean Heatmap
     plt.figure(figsize=(7.5, 6))
     im_mean = plt.imshow(masked_mean, aspect='equal', cmap='YlOrRd', interpolation='nearest')
     plt.xlabel("Target Layer Index")
@@ -389,7 +424,7 @@ def main():
     plt.savefig(heatmap_mean_name, dpi=150)
     plt.close()
 
-    # Plot 2D Source Layer vs. Target Layer Max Heatmap
+    # Plot Max Heatmap
     plt.figure(figsize=(7.5, 6))
     im_max = plt.imshow(masked_max, aspect='equal', cmap='YlOrRd', interpolation='nearest')
     plt.xlabel("Target Layer Index")
@@ -401,10 +436,24 @@ def main():
     plt.savefig(heatmap_max_name, dpi=150)
     plt.close()
 
+    # Plot 2D Subspace Alignment Heatmap
+    plt.figure(figsize=(7.5, 6))
+    # We display the upper triangle since alignment is symmetric
+    im_align = plt.imshow(alignment_matrix, aspect='equal', cmap='plasma', interpolation='nearest', vmin=0, vmax=1)
+    plt.xlabel("Source Layer B Index")
+    plt.ylabel("Source Layer A Index")
+    plt.title(f"Layer-to-Layer Subspace Alignment heatmap: {prefix.capitalize()} Model")
+    plt.colorbar(im_align, fraction=0.046, pad=0.04)
+    plt.tight_layout()
+    heatmap_align_name = f"{prefix}subspace_alignment_matrix.png"
+    plt.savefig(heatmap_align_name, dpi=150)
+    plt.close()
+
     print("\n" + "=" * 70)
     print(f"  Saved global geometry plot -> {panel_plot_name}")
     print(f"  Saved mean heatmap -> {heatmap_mean_name}")
     print(f"  Saved max heatmap -> {heatmap_max_name}")
+    print(f"  Saved subspace alignment matrix -> {heatmap_align_name}")
     print("=" * 70)
 
 if __name__ == "__main__":
