@@ -11,16 +11,16 @@ The metric is normalized to represent percentage change:
 Stage 1 is purely empirical — reporting observations without graph interpretation.
 
 Experiments:
-  1. Pairwise Influence Matrix + CKA similarity
-  2. Influence Spectrum (SVD analysis with permutation test & PR)
+  1. Pairwise Influence Matrix + CKA similarity (with Random Control Baseline)
+  2. Influence Spectrum (SVD analysis with repeated permutation test & PR)
   3. Sparsity (Gini coefficient, Lorenz curve) and Modularity
   4. Domain-Conditional Influence
-  5. Conditional Influence (Testing for dependency chains)
+  5. Conditional Influence (Distribution of drops across top 20 edges)
 
 Usage:
   python map_dependencies.py
   python map_dependencies.py --model_path C:/path/to/gpt2_local
-  python map_dependencies.py --source_heads L0H00,L0H04
+  python map_dependencies.py --source_heads L0H00,L0H07
 """
 
 import argparse
@@ -33,6 +33,7 @@ import matplotlib.pyplot as plt
 from collections import defaultdict
 from transformers import GPT2LMHeadModel, GPT2Tokenizer
 import re
+from scipy.stats import ttest_ind
 
 # ── Probe texts (same domains as Paper 1) ─────────────────────────────────────
 
@@ -94,7 +95,7 @@ def enc(tok, text, max_length=64):
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  Experiment 1 — Pairwise Influence Matrix + CKA
+#  Helper functions for Hook captures
 # ══════════════════════════════════════════════════════════════════════════════
 
 def _capture_head_outputs(model, tokenizer, text, max_length=64):
@@ -135,8 +136,6 @@ def _capture_head_outputs_ablated(model, tokenizer, text, ablate_layer, ablate_h
     hooks    = []
 
     a_s, a_e = ablate_head * d_head, (ablate_head + 1) * d_head
-    
-    # We might ablate up to two heads (for Experiment 5)
     ablations = [(ablate_layer, a_s, a_e)]
     if second_ablate_layer is not None and second_ablate_head is not None:
         s_s, s_e = second_ablate_head * d_head, (second_ablate_head + 1) * d_head
@@ -178,9 +177,6 @@ def _capture_head_outputs_ablated(model, tokenizer, text, ablate_layer, ablate_h
 
 
 def linear_cka(X, Y):
-    """
-    Linear CKA per sequence between two representation matrices X, Y of shape (n, d).
-    """
     X = X - X.mean(dim=0, keepdim=True)
     Y = Y - Y.mean(dim=0, keepdim=True)
     hsic_xy = (X.T @ Y).norm('fro') ** 2
@@ -192,13 +188,57 @@ def linear_cka(X, Y):
     return float(hsic_xy / denom)
 
 
+# ══════════════════════════════════════════════════════════════════════════════
+#  Bootstrap & Permutation helpers
+# ══════════════════════════════════════════════════════════════════════════════
+
+def bootstrap_metric(data_by_text, metric_fn, num_bootstraps=200):
+    n_texts = data_by_text.shape[0]
+    boot_vals = []
+    for _ in range(num_bootstraps):
+        indices = np.random.choice(n_texts, size=n_texts, replace=True)
+        sample_mean_matrix = data_by_text[indices].mean(axis=0)
+        boot_vals.append(metric_fn(sample_mean_matrix))
+    boot_vals = np.sort(boot_vals)
+    low = np.percentile(boot_vals, 2.5)
+    high = np.percentile(boot_vals, 97.5)
+    return low, high
+
+
+def bootstrap_domain_correlations(domain_data, num_bootstraps=200):
+    domains = list(domain_data.keys())
+    n_texts = 5
+    corrs = { (d1, d2): [] for i, d1 in enumerate(domains) for d2 in domains[i+1:] }
+    
+    for _ in range(num_bootstraps):
+        resampled_mats = {}
+        for d in domains:
+            idx = np.random.choice(n_texts, size=n_texts, replace=True)
+            resampled_mats[d] = domain_data[d][idx].mean(axis=0).ravel()
+        for (d1, d2) in corrs:
+            r = np.corrcoef(resampled_mats[d1], resampled_mats[d2])[0, 1]
+            corrs[(d1, d2)].append(r)
+            
+    ci = {}
+    for pair, vals in corrs.items():
+        ci[pair] = (np.percentile(vals, 2.5), np.percentile(vals, 97.5))
+    return ci
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  Experiment 1 — Pairwise Influence Matrix + CKA + Controls
+# ══════════════════════════════════════════════════════════════════════════════
+
 def compute_influence_matrix(model, tokenizer, texts, source_heads):
     n_layers = model.config.n_layer
     n_heads  = model.config.n_head
-    influence = defaultdict(list)
-    cka_sims  = defaultdict(list)
-
     all_targets = [(l, h) for l in range(n_layers) for h in range(n_heads)]
+
+    # Store raw values per text to enable post-hoc bootstrapping
+    I_by_text = np.zeros((len(texts), len(source_heads), len(all_targets)))
+    C_by_text = np.ones((len(texts), len(source_heads), len(all_targets))) # Default CKA = 1.0
+
+    target_idx = {t: i for i, t in enumerate(all_targets)}
 
     print(f"\n  Computing influence matrix for {len(source_heads)} source heads "
           f"-> {len(all_targets)} target heads")
@@ -207,123 +247,164 @@ def compute_influence_matrix(model, tokenizer, texts, source_heads):
     for ti, text in enumerate(texts):
         base = _capture_head_outputs(model, tokenizer, text)
 
-        for src_l, src_h in source_heads:
+        for src_idx, (src_l, src_h) in enumerate(source_heads):
             ablated = _capture_head_outputs_ablated(
                 model, tokenizer, text, src_l, src_h
             )
 
-            for tgt in all_targets:
+            for tgt_idx, tgt in enumerate(all_targets):
                 if tgt[0] <= src_l:
-                    continue # Target is not downstream
+                    continue  # Target is not downstream
                 
                 if tgt in base and tgt in ablated:
                     b = base[tgt]    
                     a = ablated[tgt] 
 
-                    # Normalized influence: percentage change in representation norm
-                    # I(u,v) = ||h_v - h_v^{\u}|| / (||h_v|| + 1e-8)
+                    # Percentage change in representation norm
                     shift = ((b - a).norm(dim=-1) / (b.norm(dim=-1) + 1e-8)).mean().item()
-                    influence[((src_l, src_h), tgt)].append(shift)
+                    I_by_text[ti, src_idx, tgt_idx] = shift
 
                     # CKA similarity per sequence
                     if b.shape[0] >= 2:  
-                        cka = linear_cka(b, a)
-                        cka_sims[((src_l, src_h), tgt)].append(cka)
+                        C_by_text[ti, src_idx, tgt_idx] = linear_cka(b, a)
 
         if (ti + 1) % 5 == 0 or ti == len(texts) - 1:
             print(f"    Text {ti+1}/{len(texts)} done")
 
-    I = {}
-    C = {}
-    for key, vals in influence.items():
-        I[key] = float(np.mean(vals))
-    for key, vals in cka_sims.items():
-        C[key] = float(np.mean(vals))
-
-    return I, C, all_targets
+    return I_by_text, C_by_text, all_targets
 
 
-def influence_to_matrix(I, source_heads, all_targets):
-    mat = np.zeros((len(source_heads), len(all_targets)))
-    target_idx = {t: i for i, t in enumerate(all_targets)}
-    source_idx = {s: i for i, s in enumerate(source_heads)}
-    for (src, tgt), val in I.items():
-        if tgt in target_idx and src in source_idx:
-            mat[source_idx[src], target_idx[tgt]] = val
-    return mat
+def select_control_heads(model, source_heads):
+    n_heads = model.config.n_head
+    control_heads = []
+    
+    by_layer = defaultdict(set)
+    for l, h in source_heads:
+        by_layer[l].add(h)
+        
+    for l, heads in by_layer.items():
+        all_heads = set(range(n_heads))
+        available = list(all_heads - heads)
+        if len(available) >= len(heads):
+            chosen = np.random.choice(available, size=len(heads), replace=False)
+            for h in chosen:
+                control_heads.append((l, int(h)))
+        else:
+            for h in range(n_heads):
+                if (l, h) not in source_heads:
+                    control_heads.append((l, h))
+                    if len(control_heads) == len(source_heads):
+                        break
+    return control_heads
 
 
-def cka_to_matrix(C, source_heads, all_targets):
-    mat = np.ones((len(source_heads), len(all_targets)))  
-    target_idx = {t: i for i, t in enumerate(all_targets)}
-    source_idx = {s: i for i, s in enumerate(source_heads)}
-    for (src, tgt), val in C.items():
-        if tgt in target_idx and src in source_idx:
-            mat[source_idx[src], target_idx[tgt]] = val
-    return mat
+def plot_influence_and_cka(I_mat, C_mat, prefix=""):
+    print("\n" + "=" * 65)
+    print("  EXPERIMENT 1: INFLUENCE & CKA VISUALIZATION")
+    print("=" * 65)
+
+    fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+
+    im1 = axes[0].imshow(I_mat, aspect='auto', cmap='YlOrRd', interpolation='nearest')
+    axes[0].set_xlabel("Target head index")
+    axes[0].set_ylabel("Source head index")
+    axes[0].set_title("Representation Shift I(u,v)\n(higher = more influence)")
+    plt.colorbar(im1, ax=axes[0], fraction=0.046)
+
+    im2 = axes[1].imshow(1 - C_mat, aspect='auto', cmap='YlOrRd', interpolation='nearest')
+    axes[1].set_xlabel("Target head index")
+    axes[1].set_ylabel("Source head index")
+    axes[1].set_title("CKA Disruption (1 - CKA)\n(higher = more structural change)")
+    plt.colorbar(im2, ax=axes[1], fraction=0.046)
+
+    plt.suptitle("Experiment 1: Pairwise Influence Matrix + CKA",
+                 fontsize=12, fontweight="bold")
+    plt.tight_layout()
+    plt.savefig(f"{prefix}exp1_influence_cka.png", dpi=150, bbox_inches="tight")
+    plt.close()
+    print(f"  Saved -> {prefix}exp1_influence_cka.png")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
 #  Experiment 2 — Influence Spectrum (SVD)
 # ══════════════════════════════════════════════════════════════════════════════
 
-def analyze_influence_spectrum(I_mat, prefix=""):
+def pr_metric(mat):
+    _, S, _ = np.linalg.svd(mat, full_matrices=False)
+    return float((S.sum() ** 2) / ((S ** 2).sum() + 1e-12))
+
+
+def repeated_permutation_test(I_mat, num_permutations=1000):
+    shuffled_S = []
+    flat = I_mat.copy().ravel()
+    for _ in range(num_permutations):
+        np.random.shuffle(flat)
+        sh_mat = flat.reshape(I_mat.shape)
+        _, S_rand, _ = np.linalg.svd(sh_mat, full_matrices=False)
+        shuffled_S.append(S_rand)
+    shuffled_S = np.array(shuffled_S)
+    
+    _, S_empirical, _ = np.linalg.svd(I_mat, full_matrices=False)
+    p_values = []
+    for i in range(len(S_empirical)):
+        p = np.sum(shuffled_S[:, i] >= S_empirical[i]) / num_permutations
+        p_values.append(p)
+        
+    return S_empirical, shuffled_S, p_values
+
+
+def analyze_influence_spectrum(I_mat, I_by_text, prefix=""):
     print("\n" + "=" * 65)
     print("  EXPERIMENT 2: INFLUENCE SPECTRUM (SVD)")
     print("=" * 65)
 
-    U, S, Vt = np.linalg.svd(I_mat, full_matrices=False)
-    total_var = (S ** 2).sum()
-    cumulative = np.cumsum(S ** 2) / total_var * 100
-    pr = (S.sum() ** 2) / total_var
+    S, cumvar = analyze_svd_properties(I_mat)
+    pr = pr_metric(I_mat)
 
-    # Permutation test
-    I_shuffled = I_mat.copy().ravel()
-    np.random.shuffle(I_shuffled)
-    I_shuffled = I_shuffled.reshape(I_mat.shape)
-    _, S_rand, _ = np.linalg.svd(I_shuffled, full_matrices=False)
-    cum_rand = np.cumsum(S_rand ** 2) / (S_rand ** 2).sum() * 100
+    # Bootstrap CIs
+    pr_low, pr_high = bootstrap_metric(I_by_text, pr_metric)
+    
+    # Repeated Permutation Test
+    S_emp, S_rand_dist, p_values = repeated_permutation_test(I_mat, num_permutations=1000)
 
     print(f"\n  Matrix shape: {I_mat.shape}")
-    print(f"  Top singular values (vs shuffled expected):")
-    for i in range(min(10, len(S))):
-        print(f"    σ_{i+1:02d} = {S[i]:.4f} (rand: {S_rand[i]:.4f}) | "
-              f"cumulative var: {cumulative[i]:.1f}%")
-
-    eff_rank_90 = int(np.searchsorted(cumulative, 90.0)) + 1
-    eff_rank_80 = int(np.searchsorted(cumulative, 80.0)) + 1
-    eff_rank_60 = int(np.searchsorted(cumulative, 60.0)) + 1
+    print(f"  Effective Routing Dimensionality (Participation Ratio): {pr:.2f} (95% CI: [{pr_low:.2f}, {pr_high:.2f}])")
     
-    print(f"\n  Participation Ratio (intrinsic dimensionality): {pr:.2f}")
-    print(f"  Effective rank (60% variance): {eff_rank_60}")
-    print(f"  Effective rank (80% variance): {eff_rank_80}")
-    print(f"  Effective rank (90% variance): {eff_rank_90}")
-    print(f"  Full rank: {len(S)}")
-
-    top5_var = cumulative[min(4, len(cumulative)-1)]
-    print(f"\n  Top 5 singular values capture {top5_var:.1f}% of variance")
+    print(f"\n  Top singular values vs. permutation baseline:")
+    for i in range(min(10, len(S))):
+        rand_mean = S_rand_dist[:, i].mean()
+        rand_95_low = np.percentile(S_rand_dist[:, i], 2.5)
+        rand_95_high = np.percentile(S_rand_dist[:, i], 97.5)
+        print(f"    σ_{i+1:02d} = {S[i]:.4f} | Shuffled mean: {rand_mean:.4f} [95% CI: {rand_95_low:.4f}, {rand_95_high:.4f}] | p = {p_values[i]:.4f}")
 
     fig, axes = plt.subplots(1, 2, figsize=(12, 4.5))
 
+    # Plot empirical vs shuffled spectrum
     axes[0].bar(range(len(S)), S, color="steelblue", alpha=0.8, label="Empirical")
-    axes[0].plot(range(len(S_rand)), S_rand, color="red", linestyle="--", label="Shuffled")
+    # Error band for shuffled spectrum
+    rand_low = np.percentile(S_rand_dist, 2.5, axis=0)
+    rand_high = np.percentile(S_rand_dist, 97.5, axis=0)
+    axes[0].fill_between(range(len(S)), rand_low, rand_high, color="red", alpha=0.2, label="Shuffled (95% CI)")
+    axes[0].plot(range(len(S)), S_rand_dist.mean(axis=0), color="red", linestyle="--", label="Shuffled Mean")
     axes[0].set_xlabel("Component index")
     axes[0].set_ylabel("Singular value")
     axes[0].set_title("Singular Value Spectrum")
     axes[0].legend()
 
+    # Cumulative variance plot
+    total_var = (S ** 2).sum()
+    cumulative = np.cumsum(S ** 2) / total_var * 100
+    cum_rand_mean = np.cumsum(S_rand_dist.mean(axis=0) ** 2) / (S_rand_dist.mean(axis=0) ** 2).sum() * 100
     axes[1].plot(range(1, len(cumulative)+1), cumulative, "o-", color="darkorange",
                  markersize=3, label="Empirical")
-    axes[1].plot(range(1, len(cum_rand)+1), cum_rand, "x--", color="red",
-                 markersize=3, label="Shuffled")
-    axes[1].axhline(60, color="gray", linestyle="--", alpha=0.5)
-    axes[1].axhline(80, color="gray", linestyle="-.", alpha=0.5)
+    axes[1].plot(range(1, len(cum_rand_mean)+1), cum_rand_mean, "x--", color="red",
+                 markersize=3, label="Shuffled Mean")
     axes[1].set_xlabel("Number of components")
     axes[1].set_ylabel("Cumulative variance (%)")
     axes[1].set_title("Cumulative Variance Explained")
     axes[1].legend()
 
-    plt.suptitle(f"Experiment 2: Influence Spectrum (PR={pr:.1f})", fontsize=12, fontweight="bold")
+    plt.suptitle(f"Experiment 2: Influence Spectrum (Effective routing dim = {pr:.2f})", fontsize=12, fontweight="bold")
     plt.tight_layout()
     plt.savefig(f"{prefix}exp2_influence_spectrum.png", dpi=150, bbox_inches="tight")
     plt.close()
@@ -332,9 +413,20 @@ def analyze_influence_spectrum(I_mat, prefix=""):
     return S, cumulative
 
 
+def analyze_svd_properties(I_mat):
+    U, S, Vt = np.linalg.svd(I_mat, full_matrices=False)
+    total_var = (S ** 2).sum()
+    cumulative = np.cumsum(S ** 2) / total_var * 100
+    return S, cumulative
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 #  Experiment 3 — Sparsity (Gini) and Modularity
 # ══════════════════════════════════════════════════════════════════════════════
+
+def gini_metric(mat):
+    return gini_coefficient(mat.ravel())
+
 
 def gini_coefficient(values):
     v = np.sort(np.abs(values).ravel())
@@ -345,14 +437,16 @@ def gini_coefficient(values):
     return float((2 * (index * v).sum() / (n * v.sum())) - (n + 1) / n)
 
 
-def analyze_sparsity_and_modularity(I_mat, source_heads, all_targets, prefix=""):
+def analyze_sparsity_and_modularity(I_mat, I_by_text, source_heads, all_targets, prefix=""):
     print("\n" + "=" * 65)
     print("  EXPERIMENT 3: SPARSITY & MODULARITY")
     print("=" * 65)
 
     flat = I_mat.ravel()
     gini = gini_coefficient(flat)
-    print(f"\n  Gini coefficient of influence distribution: {gini:.4f}")
+    gini_low, gini_high = bootstrap_metric(I_by_text, gini_metric)
+    
+    print(f"\n  Gini coefficient of influence distribution: {gini:.4f} (95% CI: [{gini_low:.4f}, {gini_high:.4f}])")
 
     print(f"\n  Per-source-head influence concentration:")
     for i, (sl, sh) in enumerate(source_heads):
@@ -446,22 +540,27 @@ def experiment4_domain_conditional(model, tokenizer, source_heads, prefix=""):
     print("  EXPERIMENT 4: DOMAIN-CONDITIONAL INFLUENCE")
     print("=" * 65)
 
+    domain_data = {}
     domain_matrices = {}
 
     for domain, texts in DOMAIN_PROBES.items():
         print(f"\n  ── Domain: {domain} ──")
-        I_d, _, targets = compute_influence_matrix(model, tokenizer, texts, source_heads)
-        I_mat_d = influence_to_matrix(I_d, source_heads, targets)
-        domain_matrices[domain] = I_mat_d
+        I_by_text_d, _, targets = compute_influence_matrix(model, tokenizer, texts, source_heads)
+        domain_data[domain] = I_by_text_d
+        domain_matrices[domain] = I_by_text_d.mean(axis=0)
 
     domains = list(domain_matrices.keys())
-    print(f"\n  Cross-domain influence similarity (Pearson r):")
+    
+    # Compute cross-domain Pearson correlations with bootstrap CIs
+    print(f"\n  Cross-domain influence similarity (Pearson r with 95% bootstrap CI):")
+    domain_cis = bootstrap_domain_correlations(domain_data, num_bootstraps=200)
+    
     for i in range(len(domains)):
         for j in range(i+1, len(domains)):
             d1, d2 = domains[i], domains[j]
-            r = float(np.corrcoef(domain_matrices[d1].ravel(),
-                                  domain_matrices[d2].ravel())[0, 1])
-            print(f"    {d1} vs {d2}: r = {r:+.3f}")
+            r = float(np.corrcoef(domain_matrices[d1].ravel(), domain_matrices[d2].ravel())[0, 1])
+            ci_low, ci_high = domain_cis[(d1, d2)]
+            print(f"    {d1} vs {d2}: r = {r:+.3f} (95% CI: [{ci_low:+.3f}, {ci_high:+.3f}])")
 
     fig, axes = plt.subplots(1, len(domains), figsize=(6 * len(domains), 5))
     for i, domain in enumerate(domains):
@@ -486,13 +585,7 @@ def experiment4_domain_conditional(model, tokenizer, source_heads, prefix=""):
 #  Experiment 5 — Conditional Influence
 # ══════════════════════════════════════════════════════════════════════════════
 
-def compute_conditional_influence(model, tokenizer, texts, source, mediator, target):
-    """
-    Measures I(source -> target) with and without mediator ablated.
-    """
-    print(f"\n  Testing Conditional Influence: L{source[0]}H{source[1]} -> L{target[0]}H{target[1]} "
-          f"conditioned on L{mediator[0]}H{mediator[1]}")
-    
+def compute_conditional_influence(model, tokenizer, texts, source, mediator, target, verbose=True):
     base_shifts = []
     cond_shifts = []
 
@@ -519,7 +612,7 @@ def compute_conditional_influence(model, tokenizer, texts, source, mediator, tar
             shift = ((b - a_s).norm(dim=-1) / (b.norm(dim=-1) + 1e-8)).mean().item()
             base_shifts.append(shift)
 
-            # Conditional influence I(source, target | mediator) = || h^{\w} - h^{\u,\w} ||
+            # Conditional influence I(source, target | mediator) = || h^{\\w} - h^{\\u,\\w} ||
             a_m = ablated_med[target]
             a_sm = ablated_src_med[target]
             cond_shift = ((a_m - a_sm).norm(dim=-1) / (a_m.norm(dim=-1) + 1e-8)).mean().item()
@@ -529,11 +622,13 @@ def compute_conditional_influence(model, tokenizer, texts, source, mediator, tar
     cond_val = float(np.mean(cond_shifts))
     drop_pct = (base_val - cond_val) / (base_val + 1e-8) * 100
 
-    print(f"    Base influence I(u, v):         {base_val:.4f}")
-    print(f"    Cond influence I(u, v | w):     {cond_val:.4f}")
-    print(f"    Influence drop when conditioned: {drop_pct:.1f}%")
+    if verbose:
+        print(f"    Base influence I(u, v):         {base_val:.4f}")
+        print(f"    Cond influence I(u, v | w):     {cond_val:.4f}")
+        print(f"    Influence drop when conditioned: {drop_pct:.1f}%")
 
     return base_val, cond_val
+
 
 def experiment5_conditional_influence(model, tokenizer, texts, I_mat, source_heads, all_targets):
     print("\n" + "=" * 65)
@@ -543,68 +638,57 @@ def experiment5_conditional_influence(model, tokenizer, texts, I_mat, source_hea
     if len(source_heads) == 0:
         return
         
-    # Find a strong u -> v influence
-    flat_idx = np.argmax(I_mat)
-    src_idx, tgt_idx = np.unravel_index(flat_idx, I_mat.shape)
-    source = source_heads[src_idx]
-    target = all_targets[tgt_idx]
+    # Find all pairs (u, v) where target v is at least 2 layers downstream of source u
+    pairs = []
+    target_idx = {t: i for i, t in enumerate(all_targets)}
+    source_idx = {s: i for i, s in enumerate(source_heads)}
     
-    print(f"  Selected strongest influence pair: L{source[0]}H{source[1]} -> L{target[0]}H{target[1]}")
+    for src in source_heads:
+        for tgt in all_targets:
+            if tgt[0] >= src[0] + 2:
+                influence_val = I_mat[source_idx[src], target_idx[tgt]]
+                pairs.append((influence_val, src, tgt))
+                
+    pairs.sort(key=lambda x: x[0], reverse=True)
+    top_pairs = pairs[:20]
     
-    # Heuristically find a mediator w between source and target that is also influenced by source
-    candidate_mediators = []
-    for tgt_i, tgt in enumerate(all_targets):
-        if source[0] < tgt[0] < target[0]:
-            candidate_mediators.append((I_mat[src_idx, tgt_i], tgt))
-            
-    if not candidate_mediators:
-        print("  Could not find an intermediate mediator layer for conditional testing.")
+    if not top_pairs:
+        print("  No candidate pairs with target at least 2 layers downstream.")
         return
         
-    candidate_mediators.sort(reverse=True)
-    mediator = candidate_mediators[0][1]
+    print(f"  Evaluating top {len(top_pairs)} strongest influence pairs for mediation drops...")
     
-    print(f"  Selected strong intermediate mediator: L{mediator[0]}H{mediator[1]}")
+    all_drops = []
     
-    compute_conditional_influence(model, tokenizer, texts, source, mediator, target)
-
-
-# ══════════════════════════════════════════════════════════════════════════════
-#  Visualization (influence + CKA heatmaps)
-# ══════════════════════════════════════════════════════════════════════════════
-
-def plot_influence_and_cka(I_mat, C_mat, prefix=""):
-    print("\n" + "=" * 65)
-    print("  EXPERIMENT 1: INFLUENCE & CKA VISUALIZATION")
-    print("=" * 65)
-
-    fig, axes = plt.subplots(1, 2, figsize=(14, 5))
-
-    im1 = axes[0].imshow(I_mat, aspect='auto', cmap='YlOrRd', interpolation='nearest')
-    axes[0].set_xlabel("Target head index")
-    axes[0].set_ylabel("Source head index")
-    axes[0].set_title("Representation Shift I(u,v)\n(higher = more influence)")
-    plt.colorbar(im1, ax=axes[0], fraction=0.046)
-
-    im2 = axes[1].imshow(1 - C_mat, aspect='auto', cmap='YlOrRd', interpolation='nearest')
-    axes[1].set_xlabel("Target head index")
-    axes[1].set_ylabel("Source head index")
-    axes[1].set_title("CKA Disruption (1 - CKA)\n(higher = more structural change)")
-    plt.colorbar(im2, ax=axes[1], fraction=0.046)
-
-    plt.suptitle("Experiment 1: Pairwise Influence Matrix + CKA",
-                 fontsize=12, fontweight="bold")
-    plt.tight_layout()
-    plt.savefig(f"{prefix}exp1_influence_cka.png", dpi=150, bbox_inches="tight")
-    plt.close()
-    print(f"  Saved -> {prefix}exp1_influence_cka.png")
-
-    flat_I = I_mat.ravel()
-    flat_C = (1 - C_mat).ravel()
-    mask = (flat_I > 0) & np.isfinite(flat_C)
-    if mask.sum() > 2:
-        r = float(np.corrcoef(flat_I[mask], flat_C[mask])[0, 1])
-        print(f"  Pearson r(shift, 1-CKA) = {r:.3f}")
+    for rank, (val, source, target) in enumerate(top_pairs):
+        # Candidates w: layer_u < layer_w < layer_v
+        mediators = [t for t in all_targets if source[0] < t[0] < target[0]]
+        if not mediators:
+            continue
+            
+        # Select mediator w that has the highest product of empirical influence I(u, w) * I(w, v)
+        mediator_scores = []
+        for w in mediators:
+            if w in source_idx:
+                score = I_mat[source_idx[source], target_idx[w]] * I_mat[source_idx[w], target_idx[target]]
+            else:
+                score = I_mat[source_idx[source], target_idx[w]]
+            mediator_scores.append((score, w))
+            
+        mediator_scores.sort(reverse=True)
+        best_mediator = mediator_scores[0][1]
+        
+        base_val, cond_val = compute_conditional_influence(model, tokenizer, texts, source, best_mediator, target, verbose=False)
+        drop_pct = (base_val - cond_val) / (base_val + 1e-8) * 100
+        all_drops.append(drop_pct)
+        print(f"    Rank {rank+1:02d}: L{source[0]}H{source[1]} -> L{target[0]}H{target[1]} via L{best_mediator[0]}H{best_mediator[1]} | Drop: {drop_pct:.1f}%")
+        
+    if all_drops:
+        median_drop = np.median(all_drops)
+        low_drop = np.percentile(all_drops, 25)
+        high_drop = np.percentile(all_drops, 75)
+        print(f"\n  Mediation drop distribution across top pairs:")
+        print(f"    Median drop: {median_drop:.1f}% (IQR: [{low_drop:.1f}%, {high_drop:.1f}%])")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -620,7 +704,7 @@ def main():
     parser.add_argument("--model", type=str, default="gpt2",
                         help="Model name (gpt2 or gpt2-medium)")
     parser.add_argument("--source_heads", type=str, default=None,
-                        help="Comma-separated list of heads, e.g., L0H00,L0H04. Defaults to all heads in the bridge layer (L0 for Small, L2 for Medium).")
+                        help="Comma-separated list of heads, e.g., L0H00,L0H07. Defaults to all heads in the bridge layer (L0 for Small, L2 for Medium).")
     parser.add_argument("--skip_domain", action="store_true",
                         help="Skip Exp 4 domain-conditional analysis (faster)")
     parser.add_argument("--skip_conditional", action="store_true",
@@ -637,42 +721,80 @@ def main():
 
     source_heads = []
     if args.source_heads:
-        # Parse L0H00 format
         for item in args.source_heads.split(','):
             match = re.match(r'L(\d+)H(\d+)', item.strip(), re.IGNORECASE)
             if match:
                 source_heads.append((int(match.group(1)), int(match.group(2))))
     else:
-        # Default bridge layer
         default_layer = 2 if n_layers == 24 else 0
         source_heads = [(default_layer, h) for h in range(n_heads)]
         
-    print(f"  Source heads: {[f'L{l}H{h}' for l,h in source_heads]}")
+    print(f"  Source (Bridge) heads: {[f'L{l}H{h}' for l,h in source_heads]}")
+
+    # Select random non-bridge control heads
+    control_heads = select_control_heads(model, source_heads)
+    print(f"  Control (Random) heads: {[f'L{l}H{h}' for l,h in control_heads]}")
 
     prefix = "medium_" if n_layers == 24 else "small_"
 
-    # ── Experiment 1: Pairwise Influence Matrix + CKA ──
+    # Run influence matrix calculation for both bridge and control heads
+    all_sources = source_heads + control_heads
     all_texts = [t for v in DOMAIN_PROBES.values() for t in v]
     print(f"\n  Using {len(all_texts)} probe texts across all domains")
 
-    I_dict, C_dict, all_targets = compute_influence_matrix(
-        model, tokenizer, all_texts, source_heads
+    I_by_text, C_by_text, all_targets = compute_influence_matrix(
+        model, tokenizer, all_texts, all_sources
     )
-    I_mat = influence_to_matrix(I_dict, source_heads, all_targets)
-    C_mat = cka_to_matrix(C_dict, source_heads, all_targets)
 
+    # Slice the results back into Bridge vs Control
+    I_by_text_bridge = I_by_text[:, :len(source_heads), :]
+    I_by_text_control = I_by_text[:, len(source_heads):, :]
+    
+    C_by_text_bridge = C_by_text[:, :len(source_heads), :]
+    C_by_text_control = C_by_text[:, len(source_heads):, :]
+
+    I_mat = I_by_text_bridge.mean(axis=0)
+    C_mat = C_by_text_bridge.mean(axis=0)
+
+    I_mat_ctrl = I_by_text_control.mean(axis=0)
+
+    # Save raw data for bridge heads
     np.save(f"{prefix}influence_matrix.npy", I_mat)
     np.save(f"{prefix}cka_matrix.npy", C_mat)
     print(f"  Saved raw matrices -> {prefix}influence_matrix.npy, {prefix}cka_matrix.npy")
 
+    # ── Experiment 1 Baseline Comparison ──
+    print("\n" + "=" * 65)
+    print("  EXPERIMENT 1: BASELINE COMPARISON (Bridge vs. Control)")
+    print("=" * 65)
+    mean_bridge = I_mat.mean()
+    mean_ctrl = I_mat_ctrl.mean()
+    
+    # Bootstrap CI for mean difference
+    diff_vals = []
+    n_texts = len(all_texts)
+    for _ in range(200):
+        idx = np.random.choice(n_texts, size=n_texts, replace=True)
+        diff_vals.append(I_by_text_bridge[idx].mean() - I_by_text_control[idx].mean())
+    diff_vals = np.sort(diff_vals)
+    diff_low = np.percentile(diff_vals, 2.5)
+    diff_high = np.percentile(diff_vals, 97.5)
+
+    # Simple t-test on flat distributions
+    t_stat, p_val = ttest_ind(I_mat.ravel(), I_mat_ctrl.ravel(), equal_var=False)
+    print(f"  Mean Bridge Influence:         {mean_bridge:.4f}")
+    print(f"  Mean Control Influence:        {mean_ctrl:.4f}")
+    print(f"  Mean Difference (Bridge-Ctrl): {mean_bridge - mean_ctrl:+.4f} (95% CI: [{diff_low:+.4f}, {diff_high:+.4f}])")
+    print(f"  t-statistic:                   {t_stat:.4f} | p-value: {p_val:.4f}")
+
     plot_influence_and_cka(I_mat, C_mat, prefix)
 
     # ── Experiment 2: SVD ──
-    S, cumvar = analyze_influence_spectrum(I_mat, prefix)
+    S, cumvar = analyze_influence_spectrum(I_mat, I_by_text_bridge, prefix)
 
     # ── Experiment 3: Sparsity & Modularity ──
     gini = analyze_sparsity_and_modularity(
-        I_mat, source_heads, all_targets, prefix
+        I_mat, I_by_text_bridge, source_heads, all_targets, prefix
     )
 
     # ── Experiment 4: Domain-conditional (optional) ──
@@ -687,10 +809,13 @@ def main():
     print("  STAGE 1 SUMMARY")
     print("=" * 65)
     top5_var = cumvar[min(4, len(cumvar)-1)]
-    pr = (S.sum() ** 2) / (S ** 2).sum()
+    pr = pr_metric(I_mat)
+    pr_low, pr_high = bootstrap_metric(I_by_text_bridge, pr_metric)
+    gini_low, gini_high = bootstrap_metric(I_by_text_bridge, gini_metric)
+    
     print(f"  Influence matrix shape:  {I_mat.shape}")
-    print(f"  Gini coefficient:        {gini:.4f}")
-    print(f"  Participation Ratio:     {pr:.2f}")
+    print(f"  Gini coefficient:        {gini:.4f} (95% CI: [{gini_low:.4f}, {gini_high:.4f}])")
+    print(f"  Effective routing dim:   {pr:.2f} (95% CI: [{pr_low:.2f}, {pr_high:.2f}])")
     print(f"  Top 5 SVs variance:      {top5_var:.1f}%")
     print(f"  Effective rank (80%):    {int(np.searchsorted(cumvar, 80.0)) + 1}")
     print("=" * 65)
