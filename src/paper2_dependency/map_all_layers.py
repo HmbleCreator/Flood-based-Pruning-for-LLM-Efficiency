@@ -1,10 +1,16 @@
 """
-Map All Layers Routing Geometry
-===============================
+Map All Layers Routing Geometry (Refined)
+=========================================
 Computes the downstream routing geometry (PR, average influence, s1) 
 for EVERY layer in the model to determine if:
   1. The low-dimensional routing geometry is a global architectural property.
   2. The bridge layers act as dominant peaks of information flow (s1 and influence magnitude).
+
+Refinements implemented:
+  - Normalized s1 (Dominance s1/sum(s) & Variance Explained s1^2/sum(s^2))
+  - Bootstrap uncertainty (95% CI bands for all layer-wise curves)
+  - 2D Heatmap of Source Layer vs. Target Layer average influence
+  - Repeated permutation baseline comparison across all layers
 """
 
 import argparse
@@ -151,9 +157,56 @@ def get_s1(mat):
     _, S, _ = np.linalg.svd(mat, full_matrices=False)
     return float(S[0]) if len(S) > 0 else 0.0
 
+def get_variance_explained(mat):
+    _, S, _ = np.linalg.svd(mat, full_matrices=False)
+    if len(S) == 0 or (S**2).sum() == 0:
+        return 0.0
+    return float((S[0] ** 2) / (S ** 2).sum() * 100)
+
+def bootstrap_layer_metrics(I_by_text_l, num_bootstraps=200):
+    n_texts = I_by_text_l.shape[0]
+    pr_vals = []
+    var_vals = []
+    mean_vals = []
+    
+    for _ in range(num_bootstraps):
+        idx = np.random.choice(n_texts, size=n_texts, replace=True)
+        mat = I_by_text_l[idx].mean(axis=0)
+        
+        _, S, _ = np.linalg.svd(mat, full_matrices=False)
+        if len(S) > 0:
+            pr = (S.sum() ** 2) / ((S ** 2).sum() + 1e-12)
+            var_exp = (S[0] ** 2) / ((S ** 2).sum() + 1e-12) * 100
+        else:
+            pr, var_exp = 0.0, 0.0
+            
+        pr_vals.append(pr)
+        var_vals.append(var_exp)
+        mean_vals.append(mat.mean())
+        
+    ci = lambda vals: (np.percentile(vals, 2.5), np.percentile(vals, 97.5))
+    return ci(pr_vals), ci(var_vals), ci(mean_vals)
+
+def compute_permutation_baselines(I_mat, num_perms=100):
+    pr_vals = []
+    var_vals = []
+    flat = I_mat.copy().ravel()
+    for _ in range(num_perms):
+        np.random.shuffle(flat)
+        sh_mat = flat.reshape(I_mat.shape)
+        _, S, _ = np.linalg.svd(sh_mat, full_matrices=False)
+        if len(S) > 0:
+            pr = (S.sum() ** 2) / ((S ** 2).sum() + 1e-12)
+            var_exp = (S[0] ** 2) / ((S ** 2).sum() + 1e-12) * 100
+        else:
+            pr, var_exp = 0.0, 0.0
+        pr_vals.append(pr)
+        var_vals.append(var_exp)
+    return float(np.mean(pr_vals)), float(np.mean(var_vals))
+
 def main():
     parser = argparse.ArgumentParser(
-        description="Paper 2: Map downstream routing geometry for all layers"
+        description="Paper 2: Map downstream routing geometry for all layers (Refined)"
     )
     parser.add_argument("--model_path", type=str, default=None,
                         help="Path to local model weights")
@@ -176,9 +229,24 @@ def main():
     prefix = "medium_" if n_layers == 24 else "small_"
 
     layers_pr = []
-    layers_s1 = []
-    layers_mean_influence = []
+    layers_pr_ci_low = []
+    layers_pr_ci_high = []
+    
+    layers_var_exp = []
+    layers_var_exp_ci_low = []
+    layers_var_exp_ci_high = []
+    
+    layers_mean_inf = []
+    layers_mean_inf_ci_low = []
+    layers_mean_inf_ci_high = []
+    
+    layers_pr_perm = []
+    layers_var_perm = []
+
     layers_x = list(range(n_layers - 1))  # Last layer has no downstream targets
+    
+    # 2D Heatmap: Source Layer vs. Target Layer Influence
+    source_target_influence = np.zeros((n_layers, n_layers))
 
     print(f"\n  Running analysis for layers 0 to {n_layers - 2}...")
     
@@ -186,12 +254,8 @@ def main():
         source_heads = [(l, h) for h in range(n_heads)]
         all_targets = [(tgt_l, tgt_h) for tgt_l in range(l + 1, n_layers) for tgt_h in range(n_heads)]
         
-        # Matrix size: (n_heads, len(all_targets))
-        I_mat = np.zeros((n_heads, len(all_targets)))
-        
-        # Temporary storage for averaging over texts
+        # Temporary storage for text observations
         I_by_text = np.zeros((len(all_texts), n_heads, len(all_targets)))
-        target_idx = {t: idx for idx, t in enumerate(all_targets)}
 
         for ti, text in enumerate(all_texts):
             base = _capture_head_outputs(model, tokenizer, text)
@@ -208,54 +272,109 @@ def main():
                         
         I_mat = I_by_text.mean(axis=0)
         
-        # Calculate metrics for layer l
+        # 1. Store Source-Target Layer Heatmap values (distance analysis)
+        for tgt_l in range(l + 1, n_layers):
+            tgt_indices = [idx for idx, (tl, th) in enumerate(all_targets) if tl == tgt_l]
+            source_target_influence[l, tgt_l] = I_by_text[:, :, tgt_indices].mean()
+
+        # 2. Point Estimates
         pr = get_pr(I_mat)
-        s1 = get_s1(I_mat)
+        var_exp = get_variance_explained(I_mat)
         mean_inf = I_mat.mean()
         
-        layers_pr.append(pr)
-        layers_s1.append(s1)
-        layers_mean_influence.append(mean_inf)
+        # 3. Bootstrap CIs
+        ci_pr, ci_var, ci_mean = bootstrap_layer_metrics(I_by_text, num_bootstraps=200)
         
-        print(f"    Layer {l:02d}/{n_layers - 2} | Mean Inf: {mean_inf:.4f} | PR: {pr:.2f} | s1: {s1:.4f}")
+        # 4. Permutation Baselines
+        perm_pr, perm_var = compute_permutation_baselines(I_mat, num_perms=100)
+
+        # Append data
+        layers_pr.append(pr)
+        layers_pr_ci_low.append(ci_pr[0])
+        layers_pr_ci_high.append(ci_pr[1])
+        
+        layers_var_exp.append(var_exp)
+        layers_var_exp_ci_low.append(ci_var[0])
+        layers_var_exp_ci_high.append(ci_var[1])
+        
+        layers_mean_inf.append(mean_inf)
+        layers_mean_inf_ci_low.append(ci_mean[0])
+        layers_mean_inf_ci_high.append(ci_mean[1])
+        
+        layers_pr_perm.append(perm_pr)
+        layers_var_perm.append(perm_var)
+        
+        print(f"    Layer {l:02d}/{n_layers - 2} | "
+              f"Mean Inf: {mean_inf:.4f} [{ci_mean[0]:.4f}, {ci_mean[1]:.4f}] | "
+              f"PR: {pr:.2f} [{ci_pr[0]:.2f}, {ci_pr[1]:.2f} (perm: {perm_pr:.2f})] | "
+              f"s1 Var Explained: {var_exp:.1f}% [{ci_var[0]:.1f}%, {ci_var[1]:.1f}% (perm: {perm_var:.1f}%)]")
 
     # Save data arrays
     np.save(f"{prefix}all_layers_pr.npy", np.array(layers_pr))
-    np.save(f"{prefix}all_layers_s1.npy", np.array(layers_s1))
-    np.save(f"{prefix}all_layers_mean_inf.npy", np.array(layers_mean_influence))
+    np.save(f"{prefix}all_layers_var_exp.npy", np.array(layers_var_exp))
+    np.save(f"{prefix}all_layers_mean_inf.npy", np.array(layers_mean_inf))
+    np.save(f"{prefix}source_target_heatmap.npy", source_target_influence)
 
-    # Plot results
+    # Plot panel figure
     fig, axes = plt.subplots(1, 3, figsize=(18, 5))
 
-    # Plot 1: Layer vs Mean Influence
-    axes[0].plot(layers_x, layers_mean_influence, "o-", color="darkorange", linewidth=2)
+    # Plot 1: Layer vs. Mean Downstream Influence
+    axes[0].plot(layers_x, layers_mean_inf, "o-", color="darkorange", linewidth=2, label="Observed")
+    axes[0].fill_between(layers_x, layers_mean_inf_ci_low, layers_mean_inf_ci_high, color="darkorange", alpha=0.15)
     axes[0].set_xlabel("Source Layer Index")
     axes[0].set_ylabel("Average Downstream Influence")
-    axes[0].set_title("Layer-wise Average Downstream Influence")
+    axes[0].set_title("Layer-wise Downstream Influence Magnitude")
     axes[0].grid(True, linestyle=":", alpha=0.6)
 
-    # Plot 2: Layer vs s1 (Primary Routing Strength)
-    axes[1].plot(layers_x, layers_s1, "o-", color="red", linewidth=2)
+    # Plot 2: Layer vs. Dominance (% Variance Explained by s1)
+    axes[1].plot(layers_x, layers_var_exp, "o-", color="red", linewidth=2, label="Observed")
+    axes[1].plot(layers_x, layers_var_perm, "x--", color="gray", linewidth=1.5, label="Permuted")
+    axes[1].fill_between(layers_x, layers_var_exp_ci_low, layers_var_exp_ci_high, color="red", alpha=0.15)
     axes[1].set_xlabel("Source Layer Index")
-    axes[1].set_ylabel("First Singular Value (s1)")
-    axes[1].set_title("Layer-wise Primary Routing Strength (s1)")
+    axes[1].set_ylabel("s1 Variance Explained (%)")
+    axes[1].set_title("s1 Variance Explained (Dimensionless Routing Strength)")
+    axes[1].legend()
     axes[1].grid(True, linestyle=":", alpha=0.6)
 
-    # Plot 3: Layer vs PR (Effective Routing Dimensionality)
-    axes[2].plot(layers_x, layers_pr, "o-", color="steelblue", linewidth=2)
+    # Plot 3: Layer vs. PR (Effective Routing Dimensionality)
+    axes[2].plot(layers_x, layers_pr, "o-", color="steelblue", linewidth=2, label="Observed")
+    axes[2].plot(layers_x, layers_pr_perm, "x--", color="gray", linewidth=1.5, label="Permuted")
+    axes[2].fill_between(layers_x, layers_pr_ci_low, layers_pr_ci_high, color="steelblue", alpha=0.15)
     axes[2].set_xlabel("Source Layer Index")
     axes[2].set_ylabel("Effective Routing Dimensionality (PR)")
-    axes[2].set_title("Layer-wise Effective Routing Dimensionality")
+    axes[2].set_title("Effective Routing Dimensionality Profile")
+    axes[2].legend()
     axes[2].grid(True, linestyle=":", alpha=0.6)
 
     plt.suptitle(f"Global Routing Geometry Analysis: {prefix.capitalize()} Model", fontsize=14, fontweight="bold")
     plt.tight_layout()
-    plot_name = f"{prefix}global_routing_geometry.png"
-    plt.savefig(plot_name, dpi=150)
+    panel_plot_name = f"{prefix}global_routing_geometry.png"
+    plt.savefig(panel_plot_name, dpi=150)
     plt.close()
+
+    # Plot 2D Source Layer vs. Target Layer Heatmap
+    plt.figure(figsize=(7.5, 6))
+    # Mask out values below or on diagonal since influence flows only downstream
+    mask_heatmap = np.zeros_like(source_target_influence, dtype=bool)
+    for r in range(n_layers):
+        for c in range(n_layers):
+            if c <= r:
+                mask_heatmap[r, c] = True
+    masked_influence = np.ma.masked_where(mask_heatmap, source_target_influence)
     
+    im = plt.imshow(masked_influence, aspect='equal', cmap='YlOrRd', interpolation='nearest')
+    plt.xlabel("Target Layer Index")
+    plt.ylabel("Source Layer Index")
+    plt.title(f"Source-to-Target Layer Average Influence Heatmap: {prefix.capitalize()} Model")
+    plt.colorbar(im, fraction=0.046, pad=0.04)
+    plt.tight_layout()
+    heatmap_plot_name = f"{prefix}source_target_heatmap.png"
+    plt.savefig(heatmap_plot_name, dpi=150)
+    plt.close()
+
     print("\n" + "=" * 70)
-    print(f"  Saved global geometry plot -> {plot_name}")
+    print(f"  Saved global geometry plot -> {panel_plot_name}")
+    print(f"  Saved source-target layer heatmap -> {heatmap_plot_name}")
     print("=" * 70)
 
 if __name__ == "__main__":
