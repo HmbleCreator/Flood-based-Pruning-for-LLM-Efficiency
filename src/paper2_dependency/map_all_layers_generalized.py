@@ -429,9 +429,12 @@ def main():
     axes[2].legend()
     axes[2].grid(True, linestyle=":", alpha=0.6)
 
+    img_dir = "paper/figures"
+    os.makedirs(img_dir, exist_ok=True)
+
     plt.suptitle(f"Global Routing Geometry Analysis: {args.model}", fontsize=14, fontweight="bold")
     plt.tight_layout()
-    panel_plot_name = f"{safe_name}_global_routing_geometry.png"
+    panel_plot_name = os.path.join(img_dir, f"{safe_name}_global_routing_geometry.png")
     plt.savefig(panel_plot_name, dpi=150)
     plt.close()
 
@@ -450,7 +453,7 @@ def main():
     plt.ylabel("Source Layer Index")
     plt.colorbar(im_mean, fraction=0.046, pad=0.04)
     plt.tight_layout()
-    heatmap_mean_name = f"{safe_name}_source_target_heatmap_mean.png"
+    heatmap_mean_name = os.path.join(img_dir, f"{safe_name}_source_target_heatmap_mean.png")
     plt.savefig(heatmap_mean_name, dpi=150)
     plt.close()
 
@@ -460,7 +463,7 @@ def main():
     plt.ylabel("Source Layer Index")
     plt.colorbar(im_max, fraction=0.046, pad=0.04)
     plt.tight_layout()
-    heatmap_max_name = f"{safe_name}_source_target_heatmap_max.png"
+    heatmap_max_name = os.path.join(img_dir, f"{safe_name}_source_target_heatmap_max.png")
     plt.savefig(heatmap_max_name, dpi=150)
     plt.close()
 
@@ -470,7 +473,7 @@ def main():
     plt.ylabel("Source Layer A Index")
     plt.colorbar(im_align, fraction=0.046, pad=0.04)
     plt.tight_layout()
-    heatmap_align_name = f"{safe_name}_subspace_alignment_matrix.png"
+    heatmap_align_name = os.path.join(img_dir, f"{safe_name}_subspace_alignment_matrix.png")
     plt.savefig(heatmap_align_name, dpi=150)
     plt.close()
 

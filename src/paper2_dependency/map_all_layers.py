@@ -406,9 +406,12 @@ def main():
     axes[2].legend()
     axes[2].grid(True, linestyle=":", alpha=0.6)
 
+    img_dir = "paper/figures"
+    os.makedirs(img_dir, exist_ok=True)
+
     plt.suptitle(f"Global Routing Geometry Analysis: {prefix.capitalize()} Model", fontsize=14, fontweight="bold")
     plt.tight_layout()
-    panel_plot_name = f"{prefix}global_routing_geometry.png"
+    panel_plot_name = os.path.join(img_dir, f"{prefix}global_routing_geometry.png")
     plt.savefig(panel_plot_name, dpi=150)
     plt.close()
 
@@ -430,7 +433,7 @@ def main():
     plt.title(f"Source-to-Target Layer Mean Influence Heatmap: {prefix.capitalize()} Model")
     plt.colorbar(im_mean, fraction=0.046, pad=0.04)
     plt.tight_layout()
-    heatmap_mean_name = f"{prefix}source_target_heatmap_mean.png"
+    heatmap_mean_name = os.path.join(img_dir, f"{prefix}source_target_heatmap_mean.png")
     plt.savefig(heatmap_mean_name, dpi=150)
     plt.close()
 
@@ -442,7 +445,7 @@ def main():
     plt.title(f"Source-to-Target Layer Max Influence Heatmap: {prefix.capitalize()} Model")
     plt.colorbar(im_max, fraction=0.046, pad=0.04)
     plt.tight_layout()
-    heatmap_max_name = f"{prefix}source_target_heatmap_max.png"
+    heatmap_max_name = os.path.join(img_dir, f"{prefix}source_target_heatmap_max.png")
     plt.savefig(heatmap_max_name, dpi=150)
     plt.close()
 
@@ -455,7 +458,7 @@ def main():
     plt.title(f"Layer-to-Layer Subspace Alignment heatmap: {prefix.capitalize()} Model")
     plt.colorbar(im_align, fraction=0.046, pad=0.04)
     plt.tight_layout()
-    heatmap_align_name = f"{prefix}subspace_alignment_matrix.png"
+    heatmap_align_name = os.path.join(img_dir, f"{prefix}subspace_alignment_matrix.png")
     plt.savefig(heatmap_align_name, dpi=150)
     plt.close()
 
