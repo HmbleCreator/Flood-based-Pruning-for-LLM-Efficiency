@@ -658,7 +658,9 @@ def experiment5_conditional_influence(model, tokenizer, texts, I_mat, source_hea
         
     print(f"  Evaluating top {len(top_pairs)} strongest influence pairs for mediation drops...")
     
-    all_drops = []
+    best_drops = []
+    rand_drops = []
+    worst_drops = []
     
     for rank, (val, source, target) in enumerate(top_pairs):
         # Candidates w: layer_u < layer_w < layer_v
@@ -666,7 +668,7 @@ def experiment5_conditional_influence(model, tokenizer, texts, I_mat, source_hea
         if not mediators:
             continue
             
-        # Select mediator w that has the highest product of empirical influence I(u, w) * I(w, v)
+        # Score mediators by product of empirical influence I(u, w) * I(w, v)
         mediator_scores = []
         for w in mediators:
             if w in source_idx:
@@ -676,19 +678,40 @@ def experiment5_conditional_influence(model, tokenizer, texts, I_mat, source_hea
             mediator_scores.append((score, w))
             
         mediator_scores.sort(reverse=True)
+        
+        # Best mediator (highest score)
         best_mediator = mediator_scores[0][1]
         
-        base_val, cond_val = compute_conditional_influence(model, tokenizer, texts, source, best_mediator, target, verbose=False)
-        drop_pct = (base_val - cond_val) / (base_val + 1e-8) * 100
-        all_drops.append(drop_pct)
-        print(f"    Rank {rank+1:02d}: L{source[0]}H{source[1]} -> L{target[0]}H{target[1]} via L{best_mediator[0]}H{best_mediator[1]} | Drop: {drop_pct:.1f}%")
+        # Worst mediator (lowest score)
+        worst_mediator = mediator_scores[-1][1]
         
-    if all_drops:
-        median_drop = np.median(all_drops)
-        low_drop = np.percentile(all_drops, 25)
-        high_drop = np.percentile(all_drops, 75)
+        # Random mediator
+        rand_idx = np.random.choice(len(mediator_scores))
+        rand_mediator = mediator_scores[rand_idx][1]
+        
+        # Compute conditional drops
+        base_val, cond_best = compute_conditional_influence(model, tokenizer, texts, source, best_mediator, target, verbose=False)
+        _, cond_rand = compute_conditional_influence(model, tokenizer, texts, source, rand_mediator, target, verbose=False)
+        _, cond_worst = compute_conditional_influence(model, tokenizer, texts, source, worst_mediator, target, verbose=False)
+        
+        drop_best = (base_val - cond_best) / (base_val + 1e-8) * 100
+        drop_rand = (base_val - cond_rand) / (base_val + 1e-8) * 100
+        drop_worst = (base_val - cond_worst) / (base_val + 1e-8) * 100
+        
+        best_drops.append(drop_best)
+        rand_drops.append(drop_rand)
+        worst_drops.append(drop_worst)
+        
+        print(f"    Rank {rank+1:02d}: L{source[0]}H{source[1]} -> L{target[0]}H{target[1]}")
+        print(f"      Best mediator (L{best_mediator[0]}H{best_mediator[1]}):   {drop_best:.1f}% drop")
+        print(f"      Rand mediator (L{rand_mediator[0]}H{rand_mediator[1]}):   {drop_rand:.1f}% drop")
+        print(f"      Worst mediator (L{worst_mediator[0]}H{worst_mediator[1]}):  {drop_worst:.1f}% drop")
+        
+    if best_drops:
         print(f"\n  Mediation drop distribution across top pairs:")
-        print(f"    Median drop: {median_drop:.1f}% (IQR: [{low_drop:.1f}%, {high_drop:.1f}%])")
+        print(f"    Best Mediator drop:  Median = {np.median(best_drops):.1f}% (IQR: [{np.percentile(best_drops, 25):.1f}%, {np.percentile(best_drops, 75):.1f}%])")
+        print(f"    Rand Mediator drop:  Median = {np.median(rand_drops):.1f}% (IQR: [{np.percentile(rand_drops, 25):.1f}%, {np.percentile(rand_drops, 75):.1f}%])")
+        print(f"    Worst Mediator drop: Median = {np.median(worst_drops):.1f}% (IQR: [{np.percentile(worst_drops, 25):.1f}%, {np.percentile(worst_drops, 75):.1f}%])")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -758,10 +781,13 @@ def main():
 
     I_mat_ctrl = I_by_text_control.mean(axis=0)
 
-    # Save raw data for bridge heads
+    # Save raw 3D data as well
     np.save(f"{prefix}influence_matrix.npy", I_mat)
     np.save(f"{prefix}cka_matrix.npy", C_mat)
-    print(f"  Saved raw matrices -> {prefix}influence_matrix.npy, {prefix}cka_matrix.npy")
+    np.save(f"{prefix}I_by_text.npy", I_by_text_bridge)
+    np.save(f"{prefix}C_by_text.npy", C_by_text_bridge)
+    print(f"  Saved raw mean matrices -> {prefix}influence_matrix.npy, {prefix}cka_matrix.npy")
+    print(f"  Saved raw 3D observations -> {prefix}I_by_text.npy, {prefix}C_by_text.npy")
 
     # ── Experiment 1 Baseline Comparison ──
     print("\n" + "=" * 65)
@@ -780,12 +806,9 @@ def main():
     diff_low = np.percentile(diff_vals, 2.5)
     diff_high = np.percentile(diff_vals, 97.5)
 
-    # Simple t-test on flat distributions
-    t_stat, p_val = ttest_ind(I_mat.ravel(), I_mat_ctrl.ravel(), equal_var=False)
     print(f"  Mean Bridge Influence:         {mean_bridge:.4f}")
     print(f"  Mean Control Influence:        {mean_ctrl:.4f}")
     print(f"  Mean Difference (Bridge-Ctrl): {mean_bridge - mean_ctrl:+.4f} (95% CI: [{diff_low:+.4f}, {diff_high:+.4f}])")
-    print(f"  t-statistic:                   {t_stat:.4f} | p-value: {p_val:.4f}")
 
     plot_influence_and_cka(I_mat, C_mat, prefix)
 
