@@ -73,6 +73,19 @@ Characterize the influence matrix without imposing graph structure:
 
 **Falsification:** If Gini is low ($< 0.4$) and no clusters emerge, the influence structure is diffuse.
 
+### Experiment 4 — Conditional Influence (Mediation Analysis)
+
+Evaluate the causal dependency pathways by measuring whether a mediator head $w$ is necessary for the representation shift:
+- Empirical $I(u, v)$
+- Conditional $I(u, v \mid w) = \mathbb{E}_x \left[ \| h_v^{(\backslash w)}(x) - h_v^{(\backslash u, \backslash w)}(x) \|_2 \right]$
+
+Compare the influence drop $I(u, v) - I(u, v \mid w)$ using the **best, random, and worst** intermediate mediators (ranked by the product $I(u,w) \times I(w,v)$) across the top 20 strongest downstream edges.
+
+> [!WARNING]
+> Because mediator rankings are derived from the same influence matrix being validated, this experiment provides **evidence consistent with mediation** rather than an independent, absolute confirmation of discrete routing chains.
+
+**Falsification:** If the best mediators do not show significantly greater drop distributions than random or worst mediators, the observed representation shifts do not support a structured mediation hierarchy.
+
 ---
 
 ## Stage 2 — Dependency Network Analysis
@@ -81,7 +94,7 @@ Characterize the influence matrix without imposing graph structure:
 
 > The empirical influence matrix exhibits significant sparsity and modular structure. We therefore model the pairwise dependencies as a **directed dependency network**, where heads are nodes and edges are weighted by influence magnitude.
 
-### Experiment 4 — Network Topology
+### Experiment 5 — Network Topology
 
 Threshold the influence matrix to extract a directed dependency network. Compute:
 
@@ -94,7 +107,7 @@ Community detection comes first because discovering **functional modules** is ar
 
 **Falsification:** If communities do not correlate with domain-conditional damage patterns from Paper 1, the network structure is not functionally meaningful.
 
-### Experiment 5 — Hybrid Importance Scoring
+### Experiment 6 — Hybrid Importance Scoring
 
 Compare three ablation orderings:
 
@@ -110,7 +123,7 @@ This asks: **Does network structure contain information beyond Paper 1?** — no
 
 **Falsification:** If Hybrid does not improve over Bridge alone ($\Delta\rho < 0.05$), network topology adds no marginal predictive value.
 
-### Experiment 6 — Pairwise Synergy
+### Experiment 7 — Pairwise Synergy
 
 Ablate *pairs* of heads and measure whether combined damage exceeds individual damages (superadditivity):
 
@@ -122,7 +135,7 @@ This is statistically cleaner than a fixed threshold and tests whether the depen
 
 **Falsification:** If synergy in connected pairs is not significantly greater than in random pairs (permutation test $p > 0.05$), pairwise dependencies are additive.
 
-### Experiment 7 — Cross-Model Replication
+### Experiment 8 — Cross-Model Replication
 
 Repeat Stage 1 and Stage 2 on GPT-2 Small and GPT-2 Medium:
 

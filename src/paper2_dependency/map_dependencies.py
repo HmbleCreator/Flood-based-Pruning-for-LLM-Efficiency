@@ -719,6 +719,12 @@ def experiment5_conditional_influence(model, tokenizer, texts, I_mat, source_hea
 # ══════════════════════════════════════════════════════════════════════════════
 
 def main():
+    # Set random seeds for reproducibility
+    np.random.seed(42)
+    torch.manual_seed(42)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(42)
+
     parser = argparse.ArgumentParser(
         description="Paper 2 Stage 1: Representation Dependency Mapping"
     )
