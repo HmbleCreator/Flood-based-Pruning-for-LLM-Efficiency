@@ -145,7 +145,9 @@ def load_model(path=None):
     if src is None:
         import os
         script_dir = os.path.dirname(os.path.abspath(__file__))
-        local_path = os.path.join(script_dir, "..", "gpt2_local")
+        local_path = os.path.join(script_dir, "..", "..", "gpt2_local")
+        if not os.path.exists(local_path):
+            local_path = os.path.join(script_dir, "..", "gpt2_local")
         if not os.path.exists(local_path):
             local_path = os.path.join(script_dir, "gpt2_local")
             

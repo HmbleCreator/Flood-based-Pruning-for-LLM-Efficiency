@@ -80,7 +80,20 @@ DOMAIN_PROBES = {
 # ── Model utilities ───────────────────────────────────────────────────────────
 
 def load_model(path=None):
-    src = path or "gpt2"
+    src = path
+    if src is None:
+        import os
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        local_path = os.path.join(script_dir, "..", "..", "gpt2_local")
+        if not os.path.exists(local_path):
+            local_path = os.path.join(script_dir, "..", "gpt2_local")
+        if not os.path.exists(local_path):
+            local_path = os.path.join(script_dir, "gpt2_local")
+        if os.path.exists(local_path):
+            src = local_path
+        else:
+            src = "gpt2"
+
     tok = GPT2Tokenizer.from_pretrained(src)
     tok.pad_token = tok.eos_token
     mdl = GPT2LMHeadModel.from_pretrained(src)
