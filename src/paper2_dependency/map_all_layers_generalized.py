@@ -76,7 +76,7 @@ def find_attn_out_modules(model):
 
 def load_generalized_model(model_name):
     print(f"  Loading model and tokenizer: {model_name} ...")
-    tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
+    tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True, local_files_only=True)
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
     # Load in float16 with low_cpu_mem_usage to prevent memory OOM issues
@@ -84,7 +84,8 @@ def load_generalized_model(model_name):
         model_name, 
         trust_remote_code=True,
         torch_dtype=torch.float16,
-        low_cpu_mem_usage=True
+        low_cpu_mem_usage=True,
+        local_files_only=True
     )
     model.eval()
     return model, tokenizer

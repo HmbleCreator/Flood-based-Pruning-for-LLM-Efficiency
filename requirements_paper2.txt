@@ -1,0 +1,11 @@
+# Paper 2: Shared Perturbation Geometry in Transformer Representations
+# Frozen environment — key dependencies only
+# Generated: 2026-06-28
+
+torch==2.6.0
+transformers==4.46.3
+numpy==2.4.6
+scipy==1.17.1
+matplotlib==3.10.6
+safetensors==0.5.3
+tokenizers==0.20.3
