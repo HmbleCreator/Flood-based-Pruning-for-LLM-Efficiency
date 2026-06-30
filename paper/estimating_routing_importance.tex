@@ -558,6 +558,7 @@ To verify that routing descriptors explain causal necessity beyond simple layer 
 \centering
 \caption{Layer-controlled regression comparison showing explained variance ($R^2$) improvement when adding RIE centralities (Model B) to a baseline model using Layer Index only (Model A). The $F$-test p-value measures the significance of this improvement, and Cohen's $f^2$ estimates the effect size. Adding RIE descriptors increases the explained variance by up to $11.1\times$ (in Pythia-160M), indicating that network routing topology carries critical causal explanatory signal beyond architectural layout priors.}
 \label{tab:layer_control}
+\resizebox{\columnwidth}{!}{%
 \begin{tabular}{lcccc}
 \toprule
 \textbf{Model} & \textbf{Model A (Layer only) $R^2$} & \textbf{Model B (Layer + RIE) $R^2$} & \textbf{F-test p-value} & \textbf{Cohen's $f^2$} \\
@@ -566,7 +567,8 @@ To verify that routing descriptors explain causal necessity beyond simple layer 
 \textbf{OPT-125M} & 0.0943 & 0.6857 & $1.20 \times 10^{-12}$ & 1.8820 \\
 \textbf{Pythia-160M} & 0.0748 & 0.8336 & $2.40 \times 10^{-15}$ & 4.5600 \\
 \bottomrule
-\end{tabular}
+\end{tabular}%
+}
 \end{table}
 
 \begin{figure}[t]
