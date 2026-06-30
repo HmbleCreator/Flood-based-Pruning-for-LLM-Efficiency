@@ -199,7 +199,7 @@ To guide the reader, a comprehensive visual overview of our conceptual pipeline 
 \end{figure*}
 
 \paragraph{Why this paper?}
-This paper is motivated by a simple, fundamental question: \emph{Does the global routing topology of a transformer explain the causal necessity of its attention heads?} To date, the field of mechanistic interpretability has lacked global, quantitative frameworks to predict head necessity, while model compression has relied on local, heuristic measures that ignore representation dynamics. By constructing causal routing dependency graphs and demonstrating that simple network centralities explain up to 80.2\% of perplexity damage, this work proves that attention-head necessity is not an isolated, task-specific property, but rather a direct consequence of a head's topological role as a source or bottleneck in the global communication network.
+This paper is motivated by a simple, fundamental question: \emph{Does the global routing topology of a transformer explain the causal necessity of its attention heads?} To date, the field of mechanistic interpretability has lacked global, quantitative frameworks to predict head necessity, while model compression has relied on local, heuristic measures that ignore representation dynamics. By constructing causal routing dependency graphs and demonstrating that simple network centralities explain up to 80.2\% of perplexity damage, this work suggests that attention-head necessity is not an isolated, task-specific property, but rather is strongly associated with a head's topological role as a source or bottleneck in the global communication network.
 
 To guide the reader, Table~\ref{tab:notation} summarizes the key symbols and notations used throughout the paper.
 
@@ -603,7 +603,7 @@ To verify that routing descriptors explain causal necessity beyond simple layer 
 \label{fig:layer_control}
 \end{figure}
 
-Under $F$-testing, adding the routing descriptors significantly improves the model over layer index alone ($p < 10^{-5}$) across all models, demonstrating massive effect sizes (up to Cohen's $f^2 = 4.56$ for Pythia-160M), as illustrated in Figure~\ref{fig:layer_control}. This confirms that structural descriptors explain causal necessity beyond simple layer depth.
+Under $F$-testing, adding the routing descriptors significantly improves the model over layer index alone ($p < 10^{-5}$) across all models, demonstrating massive effect sizes (up to Cohen's $f^2 = 4.56$ for Pythia-160M), as illustrated in Figure~\ref{fig:layer_control}. This is consistent with the hypothesis that structural routing descriptors explain a substantial portion of the observed variance in attention-head necessity beyond layer layout priors.
 
 \subsection{Negative Control Shuffling Experiments}
 To demonstrate that the explanatory signal is driven strictly by the network graph topology, we ran a negative control where head indices and centrality values were randomly shuffled.
