@@ -291,6 +291,7 @@ Figure~\ref{fig:dep_network} shows an example of the estimated routing dependenc
 \centering
 \caption{Global topological graph statistics (Total Heads $N$, Algebraic Connectivity $\lambda_2$, Graph Modularity $Q$) and dominant routing descriptors across models. Statistics are calculated from unthresholded directed dependency graphs, showing a clean monotonic relationship: models with higher connectivity ($\lambda_2$) exhibit lower modularity ($Q$), allowing single dominant descriptors (e.g., Broadcast-Only) to explain head importance, while modular graphs (e.g., Pythia-70M) require mixed composite descriptors.}
 \label{tab:graph_stats}
+\resizebox{\columnwidth}{!}{%
 \begin{tabular}{lcccc}
 \toprule
 \textbf{Model} & \textbf{Total Heads ($N$)} & \textbf{Algebraic Connectivity ($\lambda_2$)} & \textbf{Graph Modularity ($Q$)} & \textbf{Dominant Descriptor} \\
@@ -300,7 +301,8 @@ Figure~\ref{fig:dep_network} shows an example of the estimated routing dependenc
 \textbf{Pythia-160M} & 144 & 2.3169 & 0.0920 & \textbf{Broadcast-Only} \\
 \textbf{Pythia-70M} & 48 & 1.7978 & 0.0946 & \textbf{Mixed} \\
 \bottomrule
-\end{tabular}
+\end{tabular}%
+}
 \end{table}
 
 \subsection{Observations on Graph Properties and Hypotheses}
