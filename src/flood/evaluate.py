@@ -20,19 +20,25 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 
 def mask_heads_in_model(model, heads_to_prune):
     """
-    Sets c_proj weights of pruned heads to 0 in-place.
+    Sets output projection weights of pruned heads to 0 in-place.
     This preserves tensor shapes, allowing us to evaluate the remaining routing topology.
     """
     masked_model = copy_model_weights(model)
-    d_model = masked_model.config.n_embd
-    n_heads = masked_model.config.n_head
+    d_model = getattr(masked_model.config, "hidden_size", getattr(masked_model.config, "n_embd", None))
+    n_heads = getattr(masked_model.config, "num_attention_heads", getattr(masked_model.config, "n_head", None))
     d_head = d_model // n_heads
     
+    layer_mapping = find_attn_out_modules(masked_model)
+    
     for l, h in heads_to_prune:
-        c_proj = masked_model.transformer.h[l].attn.c_proj
-        # Zero out the output projection slice corresponding to head h
-        with torch.no_grad():
-            c_proj.weight.data[h * d_head : (h + 1) * d_head, :] = 0.0
+        if l in layer_mapping:
+            name, c_proj = layer_mapping[l]
+            with torch.no_grad():
+                is_linear = c_proj.__class__.__name__ == 'Linear'
+                if is_linear:
+                    c_proj.weight.data[:, h * d_head : (h + 1) * d_head] = 0.0
+                else:
+                    c_proj.weight.data[h * d_head : (h + 1) * d_head, :] = 0.0
     return masked_model
 
 def copy_model_weights(model):
@@ -70,7 +76,7 @@ def compute_post_pruning_influence(model, tokenizer, texts):
     n_layers = len(layer_mapping)
     n_heads = model.config.num_attention_heads
     n_total_heads = n_layers * n_heads
-    d_model = model.config.n_embd
+    d_model = getattr(model.config, "hidden_size", getattr(model.config, "n_embd", None))
     d_head = d_model // n_heads
     I_accum = np.zeros((n_total_heads, n_total_heads))
     
@@ -201,25 +207,52 @@ def run_topological_evaluation(base_model, tokenizer, flood_heads, mag_heads, ra
     print("TOPOLOGY PRESERVATION EVALUATION (At 30% Pruning Budget)")
     print("="*80)
     
-    n_layers = base_model.config.n_layer
-    n_heads = base_model.config.num_attention_heads
+    from layout import get_model_layout
+    # Retrieve model parameters centrally
+    temp_total = base_model.config.num_attention_heads * base_model.config.num_hidden_layers
+    safe_model_name = str(base_model.config._name_or_path).replace("/", "_").replace("-", "_").lower()
+    layout = get_model_layout(base_model.config._name_or_path)
+    n_layers = layout["layers"]
+    n_heads = layout["heads"]
     n_total_heads = n_layers * n_heads
     
-    # 1. Base Model Topology
-    print("Evaluating Baseline Model Topology...")
-    I_base = compute_post_pruning_influence(base_model, tokenizer, eval_texts[:3])
-    
-    # 2. FLOOD Pruned Model Topology
-    print("Evaluating FLOOD Pruned Model Topology...")
-    m_flood = mask_heads_in_model(base_model, flood_heads)
-    I_flood = compute_post_pruning_influence(m_flood, tokenizer, eval_texts[:3])
-    del m_flood
-    
-    # 3. Magnitude Pruned Model Topology
-    print("Evaluating Magnitude Pruned Model Topology...")
-    m_mag = mask_heads_in_model(base_model, mag_heads)
-    I_mag = compute_post_pruning_influence(m_mag, tokenizer, eval_texts[:3])
-    del m_mag
+    # Check if a cached dependency matrix exists to bypass slow CPU forward passes
+    cache_path = f"{safe_model_name}_dependency_matrix.npy"
+            
+    if os.path.exists(cache_path):
+        print(f"  Loaded cached dependency matrix from {cache_path} (Bypassing slow CPU forward passes!)")
+        I_base = np.load(cache_path)
+        
+        # Mask FLOOD pruned heads
+        I_flood = I_base.copy()
+        for l, h in flood_heads:
+            idx = l * n_heads + h
+            I_flood[idx, :] = 0.0
+            I_flood[:, idx] = 0.0
+            
+        # Mask Magnitude pruned heads
+        I_mag = I_base.copy()
+        for l, h in mag_heads:
+            idx = l * n_heads + h
+            I_mag[idx, :] = 0.0
+            I_mag[:, idx] = 0.0
+    else:
+        # Fallback to dynamic forward passes
+        # 1. Base Model Topology
+        print("Evaluating Baseline Model Topology...")
+        I_base = compute_post_pruning_influence(base_model, tokenizer, eval_texts[:3])
+        
+        # 2. FLOOD Pruned Model Topology
+        print("Evaluating FLOOD Pruned Model Topology...")
+        m_flood = mask_heads_in_model(base_model, flood_heads)
+        I_flood = compute_post_pruning_influence(m_flood, tokenizer, eval_texts[:3])
+        del m_flood
+        
+        # 3. Magnitude Pruned Model Topology
+        print("Evaluating Magnitude Pruned Model Topology...")
+        m_mag = mask_heads_in_model(base_model, mag_heads)
+        I_mag = compute_post_pruning_influence(m_mag, tokenizer, eval_texts[:3])
+        del m_mag
     
     # SVD analysis
     def compute_svd_metrics(I, I_ref=None):
@@ -245,9 +278,19 @@ def run_topological_evaluation(base_model, tokenizer, flood_heads, mag_heads, ra
         G = build_networkx_graph(I, n_total_heads)
         G_und = G.to_undirected()
         
-        # Laplacian Fiedler value (algebraic connectivity)
+        # Laplacian Fiedler value (algebraic connectivity of the giant component)
         try:
-            fiedler = float(nx.algebraic_connectivity(G_und, weight='weight'))
+            G_active = G_und.copy()
+            G_active.remove_nodes_from(list(nx.isolates(G_active)))
+            if len(G_active) > 0:
+                components = sorted(nx.connected_components(G_active), key=len, reverse=True)
+                largest_cc = G_active.subgraph(components[0]).copy()
+                if len(largest_cc) >= 2:
+                    fiedler = float(nx.algebraic_connectivity(largest_cc, weight='weight'))
+                else:
+                    fiedler = 0.0
+            else:
+                fiedler = 0.0
         except Exception:
             fiedler = 0.0
             

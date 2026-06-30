@@ -75,28 +75,33 @@ def find_attn_out_modules(model):
 def load_model(model_name="gpt2", path=None):
     src = path
     if src is None:
-        script_dir = os.path.dirname(os.path.abspath(__file__))
-        local_name = "gpt2_medium_local" if "medium" in model_name else "gpt2_local"
-        for possible_path in [
-            os.path.join(script_dir, "..", "..", local_name),
-            os.path.join(script_dir, "..", local_name),
-            os.path.join(script_dir, local_name),
-            os.path.join("c:/Users/amiku/Downloads/NewArch", local_name)
-        ]:
-            if os.path.exists(possible_path):
-                src = possible_path
-                break
-        if src is None or not os.path.exists(src):
-            src = "EleutherAI/pythia-70m" if "pythia" in model_name.lower() else model_name
+        if "pythia" in model_name.lower():
+            # Pythia models are not stored locally — load from HuggingFace cache
+            src = model_name
+        else:
+            script_dir = os.path.dirname(os.path.abspath(__file__))
+            local_name = "gpt2_medium_local" if "medium" in model_name else "gpt2_local"
+            for possible_path in [
+                os.path.join(script_dir, "..", "..", local_name),
+                os.path.join(script_dir, "..", local_name),
+                os.path.join(script_dir, local_name),
+                os.path.join("c:/Users/amiku/Downloads/NewArch", local_name)
+            ]:
+                if os.path.exists(possible_path):
+                    src = possible_path
+                    break
+            if src is None or not os.path.exists(src):
+                src = model_name
             
     print(f"Loading model and tokenizer from: {src} ...")
-    tokenizer = AutoTokenizer.from_pretrained(src, local_files_only=True)
+    is_local = not ("pythia" in model_name.lower())
+    tokenizer = AutoTokenizer.from_pretrained(src, local_files_only=is_local)
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
         
     model = AutoModelForCausalLM.from_pretrained(
         src, torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
-        low_cpu_mem_usage=True, local_files_only=True
+        low_cpu_mem_usage=True, local_files_only=is_local
     )
     model.eval()
     if torch.cuda.is_available():
@@ -340,7 +345,7 @@ def main():
     np.random.seed(42)
     
     safe_name = args.model.replace("/", "_").replace("-", "_").lower()
-    prefix = "medium_" if "medium" in safe_name else "small_"
+    prefix = f"{safe_name}_"
     
     matrix_filename = f"{prefix}dependency_matrix.npy"
     pagerank_filename = f"{prefix}pagerank.npy"
@@ -357,7 +362,10 @@ def main():
     os.makedirs(fig_dir, exist_ok=True)
     graphml_filename = os.path.join(fig_dir, f"{safe_name}_dependency_graph.graphml")
     
-    all_texts = [t for v in DOMAIN_PROBES.values() for t in v]
+    if "medium" in safe_name or "pythia" in safe_name:
+        all_texts = [v[0] for v in DOMAIN_PROBES.values()]
+    else:
+        all_texts = [t for v in DOMAIN_PROBES.values() for t in v]
     n_prompts = len(all_texts)
     
     prompt_matrices = []
@@ -389,15 +397,12 @@ def main():
     prompt_damages = np.array(prompt_damages)
     n_total_heads = prompt_matrices.shape[1]
     
-    if n_total_heads == 144:
-        n_layers, n_heads = 12, 12
-    elif n_total_heads == 288:
-        n_layers, n_heads = 24, 12
-    elif n_total_heads == 64:
-        n_layers, n_heads = 8, 8
-    else:
-        n_heads = 8 if n_total_heads % 8 == 0 else 12
-        n_layers = n_total_heads // n_heads
+    import sys
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+    from flood.layout import get_model_layout
+    layout = get_model_layout(args.model)
+    n_layers = layout["layers"]
+    n_heads = layout["heads"]
         
     head_labels = [f"L{l:02d}H{h:02d}" for l in range(n_layers) for h in range(n_heads)]
     
@@ -571,7 +576,7 @@ def main():
     print("PHASE B: HYPOTHESIS TESTING WITH BOOTSTRAP UNCERTAINTY")
     print("="*80)
     
-    num_bootstraps = 200
+    num_bootstraps = 20 if n_total_heads > 144 else 200
     
     # Correlations for Forward PageRank
     boot_sp_causal_fwd = []
@@ -583,7 +588,13 @@ def main():
     boot_pe_causal_rev = []
     boot_kd_causal_rev = []
     
-    bridge_candidates = ["L00H07", "L00H09"] if n_total_heads == 144 else ["L02H08"]
+    # Derive bridge candidates dynamically: top-2 heads by mean causal damage
+    # This ensures valid labels for any model (GPT-2, Pythia, etc.)
+    causal_damage_mean = causal_damage  # already averaged over prompts above
+    top_bridge_indices = np.argsort(causal_damage_mean)[-2:][::-1]
+    bridge_candidates = [head_labels[i] for i in top_bridge_indices if i < len(head_labels)]
+    if not bridge_candidates:
+        bridge_candidates = [head_labels[0]]
     
     boot_bridge_prs_fwd = {bc: [] for bc in bridge_candidates}
     boot_bridge_ranks_fwd = {bc: [] for bc in bridge_candidates}
@@ -739,11 +750,21 @@ def main():
     for bc in bridge_candidates:
         print(f"    Bridge Head {bc}:")
         print("      Forward PageRank (Receiver Placement):")
-        print(f"        PageRank: {np.mean(boot_bridge_prs_fwd[bc]):.5f} [95% CI: {ci_95(boot_bridge_prs_fwd[bc])[0]:.5f}, {ci_95(boot_bridge_prs_fwd[bc])[1]:.5f}]")
-        print(f"        Rank:     #{np.mean(boot_bridge_ranks_fwd[bc]):.1f} [95% CI: #{ci_95(boot_bridge_ranks_fwd[bc])[0]:.0f}, #{ci_95(boot_bridge_ranks_fwd[bc])[1]:.0f}]")
+        fwd_prs = boot_bridge_prs_fwd[bc]
+        fwd_rks = boot_bridge_ranks_fwd[bc]
+        rev_prs = boot_bridge_prs_rev[bc]
+        rev_rks = boot_bridge_ranks_rev[bc]
+        if len(fwd_prs) > 1:
+            print(f"        PageRank: {np.mean(fwd_prs):.5f} [95% CI: {ci_95(fwd_prs)[0]:.5f}, {ci_95(fwd_prs)[1]:.5f}]")
+            print(f"        Rank:     #{np.mean(fwd_rks):.1f} [95% CI: #{ci_95(fwd_rks)[0]:.0f}, #{ci_95(fwd_rks)[1]:.0f}]")
+        else:
+            print(f"        PageRank: {np.mean(fwd_prs) if fwd_prs else float('nan'):.5f} (insufficient bootstrap samples)")
         print("      Reverse PageRank (Broadcaster/Source Placement):")
-        print(f"        PageRank: {np.mean(boot_bridge_prs_rev[bc]):.5f} [95% CI: {ci_95(boot_bridge_prs_rev[bc])[0]:.5f}, {ci_95(boot_bridge_prs_rev[bc])[1]:.5f}]")
-        print(f"        Rank:     #{np.mean(boot_bridge_ranks_rev[bc]):.1f} [95% CI: #{ci_95(boot_bridge_ranks_rev[bc])[0]:.0f}, #{ci_95(boot_bridge_ranks_rev[bc])[1]:.0f}]")
+        if len(rev_prs) > 1:
+            print(f"        PageRank: {np.mean(rev_prs):.5f} [95% CI: {ci_95(rev_prs)[0]:.5f}, {ci_95(rev_prs)[1]:.5f}]")
+            print(f"        Rank:     #{np.mean(rev_rks):.1f} [95% CI: #{ci_95(rev_rks)[0]:.0f}, #{ci_95(rev_rks)[1]:.0f}]")
+        else:
+            print(f"        PageRank: {np.mean(rev_prs) if rev_prs else float('nan'):.5f} (insufficient bootstrap samples)")
 
     # ── HYPOTHESIS 3: Bridge Heads form a Dense Rich-Club Backbone ──
     print("\n  Hypothesis 3: Rich-Club Backbone (using Reverse PageRank)")

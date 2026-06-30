@@ -19,11 +19,11 @@ def percentile_rank(arr):
 
 def compute_routing_importance_scores(
     model_name="gpt2",
-    w_bridge=0.3,
-    w_broadcast=0.3,
-    w_injector=0.2,
-    w_receiver=0.1,
-    w_backbone=0.1
+    w_bridge=0.50,
+    w_broadcast=0.30,
+    w_injector=0.10,
+    w_receiver=0.00,
+    w_backbone=0.10
 ):
     """
     Computes a combined Routing Importance Score S(h) for all heads using
@@ -31,7 +31,7 @@ def compute_routing_importance_scores(
       S(h) = w1*Bridge(h) + w2*Broadcast(h) + w3*Injector(h) + w4*Receiver(h) + w5*Backbone(h)
     """
     safe_name = model_name.replace("/", "_").replace("-", "_").lower()
-    prefix = "medium_" if "medium" in safe_name else "small_"
+    prefix = f"{safe_name}_"
     
     # Load cached arrays
     causal_damage_path = f"{prefix}causal_damage.npy"
@@ -49,16 +49,10 @@ def compute_routing_importance_scores(
     injector_scores = np.load(injector_path)
     pagerank_dict = np.load(pagerank_path, allow_pickle=True).item()
     
-    n_total_heads = len(causal_damage)
-    if n_total_heads == 144:
-        n_layers, n_heads = 12, 12
-    elif n_total_heads == 288:
-        n_layers, n_heads = 24, 12
-    elif n_total_heads == 64:
-        n_layers, n_heads = 8, 8
-    else:
-        n_heads = 12
-        n_layers = n_total_heads // n_heads
+    from layout import get_model_layout
+    layout = get_model_layout(len(causal_damage))
+    n_layers = layout["layers"]
+    n_heads = layout["heads"]
         
     head_labels = [f"L{l:02d}H{h:02d}" for l in range(n_layers) for h in range(n_heads)]
     
