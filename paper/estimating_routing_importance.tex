@@ -68,7 +68,7 @@
 % ── Abstract ─────────────────────────────────────────────────────────────────
 \begin{abstract}
 \noindent
-Understanding how information is routed through transformer attention heads is a central challenge in mechanistic interpretability. While existing approaches primarily focus on identifying discrete circuit subgraphs, we investigate whether attention-head necessity can be explained by structural properties of a global routing network. We estimate a directed routing dependency graph over attention heads using causal interventions and derive a family of Routing Importance Estimators ($\rie$) based on node centralities. Through OLS regressions across multiple transformer families (GPT-2, OPT, and Pythia), we demonstrate that these structural routing descriptors explain a substantial fraction of the observed variance in experimentally measured causal head damage (up to $R^2 = 0.802$ on Pythia-160m). Under $F$-testing, these estimators retain highly significant explanatory power beyond simple architectural priors such as layer depth ($p < 10^{-5}$), showing massive effect sizes (up to Cohen's $f^2 = 4.56$ on Pythia-160m). Random shuffling of the head-descriptor correspondence collapses the explained variance to under 1.3\%, confirming that the predictive performance is driven strictly by the underlying network topology. Finally, we instantiate the practical utility of these estimators through FLOOD, a routing-aware pruning algorithm that preserves language modeling perplexity up to $31\times$ better than magnitude-based baselines while maintaining the topological properties of the underlying network.
+Understanding how information is routed through transformer attention heads is a central challenge in mechanistic interpretability. While existing approaches primarily focus on identifying discrete circuit subgraphs, we investigate whether attention-head necessity can be explained by structural properties of a global routing network. We estimate a directed routing dependency graph over attention heads using causal interventions and derive a family of Routing Importance Estimators ($\rie$) based on node centralities. Through OLS regressions across multiple transformer families (GPT-2, OPT, and Pythia), we demonstrate that these structural routing descriptors explain a substantial fraction of the observed variance in experimentally measured causal head damage (up to $R^2 = 0.802$ on Pythia-160M). Under $F$-testing, these estimators retain highly significant explanatory power beyond simple architectural priors such as layer depth ($p < 10^{-5}$), showing massive effect sizes (up to Cohen's $f^2 = 4.56$ on Pythia-160M). Random shuffling of the head-descriptor correspondence collapses the explained variance to under 1.3\%, confirming that the predictive performance is driven strictly by the underlying network topology. Finally, we instantiate the practical utility of these estimators through FLOOD, a routing-aware pruning algorithm that preserves language modeling perplexity up to $31\times$ better than magnitude-based baselines while maintaining the topological properties of the underlying network.
 \end{abstract}
 
 \newpage
@@ -118,7 +118,7 @@ To guide the reader, a conceptual overview of our pipeline is illustrated in Fig
     \draw [line] (rie) -- (validation);
     \draw [line] (rie) -- (pruning);
 \end{tikzpicture}
-\caption{Conceptual pipeline of our research program: from causal interventions to global graph extraction, RIE structural centrality estimation, validation via causal damage regressions, and downstream application via FLOOD pruning.}
+\caption{Conceptual pipeline of our research program: causal perturbation interventions are used to estimate the routing dependency graph, which is analyzed via RIE centrality descriptors, validated through OLS damage regressions, and exploited for FLOOD pruning.}
 \label{fig:pipeline}
 \end{figure}
 
@@ -190,14 +190,14 @@ Figure~\ref{fig:dep_network} shows an example of the estimated routing dependenc
 \begin{figure}[t]
 \centering
 \includegraphics[width=0.7\textwidth]{gpt2_dependency_network_grouped.png}
-\caption{Directed routing dependency network $G$ estimated for GPT-2 Small, grouped by layers. The edge weights represent causal dependency strengths $D(u,v)$ between attention heads.}
+\caption{Directed routing dependency network $G$ estimated for GPT-2 Small, grouped by layers. Layer-grouped self-attention heads show directed representational dependencies $D(u,v)$ extracted via exhaustive causal perturbation.}
 \label{fig:dep_network}
 \end{figure}
 
 \begin{figure}[t]
 \centering
 \includegraphics[width=0.7\textwidth]{gpt2_spectral_laplacian.png}
-\caption{Spectral Laplacian analysis of the GPT-2 Small routing graph. The eigenvalues are sorted, with the second eigenvalue denoting the Fiedler value $\lambda_2$, measuring graph connectivity.}
+\caption{Sorted eigenvalues of the graph Laplacian for the GPT-2 Small routing graph. The second smallest eigenvalue defines the algebraic connectivity (Fiedler value $\lambda_2$), indicating the network's routing redundancy.}
 \label{fig:spectral}
 \end{figure}
 
@@ -209,10 +209,10 @@ Figure~\ref{fig:dep_network} shows an example of the estimated routing dependenc
 \toprule
 \textbf{Model} & \textbf{Total Heads ($N$)} & \textbf{Algebraic Connectivity ($\lambda_2$)} & \textbf{Graph Modularity ($Q$)} & \textbf{Dominant Descriptor} \\
 \midrule
-\textbf{OPT-125m} & 144 & 5.6392 & 0.0609 & \textbf{Bridge-Only} \\
-\textbf{Pythia-160m} & 144 & 4.6339 & 0.0920 & \textbf{Broadcast-Only} \\
+\textbf{OPT-125M} & 144 & 5.6392 & 0.0609 & \textbf{Bridge-Only} \\
+\textbf{Pythia-160M} & 144 & 4.6339 & 0.0920 & \textbf{Broadcast-Only} \\
 \textbf{GPT-2 Small} & 144 & 2.6931 & 0.1730 & \textbf{Broadcast-Only} \\
-\textbf{Pythia-70m} & 48 & 1.7978 & 0.2201 & \textbf{Mixed} \\
+\textbf{Pythia-70M} & 48 & 1.7978 & 0.2201 & \textbf{Mixed} \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -220,10 +220,12 @@ Figure~\ref{fig:dep_network} shows an example of the estimated routing dependenc
 \subsection{Observations on Graph Properties and Hypotheses}
 We observe a clear empirical relationship between the global graph topology and descriptor dominance:
 \begin{itemize}
-    \item \textbf{Cohesive Topologies (Low Modularity, High Connectivity):} In models like OPT-125m and Pythia-160m, specific individual descriptors exhibit clear dominance patterns (e.g., Bridge-Only or Broadcast-Only). Across the evaluated models, higher $\lambda_2$ was associated with greater descriptor dominance.
-    \item \textbf{Clustered Topologies (High Modularity, Low Connectivity):} In highly modular, loosely connected networks (e.g., Pythia-70m), individual descriptors in isolation fail. The graph is fragmented into isolated clusters, requiring composite or mixed signals to capture functional necessity.
+    \item \textbf{Cohesive Topologies (Low Modularity, High Connectivity):} In models like OPT-125M and Pythia-160M, specific individual descriptors exhibit clear dominance patterns (e.g., Bridge-Only or Broadcast-Only). Across the evaluated models, higher $\lambda_2$ was associated with greater descriptor dominance.
+    \item \textbf{Clustered Topologies (High Modularity, Low Connectivity):} In highly modular, loosely connected networks (e.g., Pythia-70M), individual descriptors in isolation fail. The graph is fragmented into isolated clusters, requiring composite or mixed signals to capture functional necessity.
 \end{itemize}
 We hypothesize that routing connectivity and path redundancy control the extent to which information routing is concentrated in single bottleneck nodes versus distributed across parallel modules.
+
+\paragraph{Takeaway.} Estimated routing dependency graphs reveal distinct global connectivity properties across transformer architectures, where cohesive models exhibit strong centrality dominance and modular ones require mixed structural representations.
 
 % ═════════════════════════════════════════════════════════════════════════════
 \section{Methodology: Routing Importance Estimators (RIE)}
@@ -236,22 +238,27 @@ We define the Routing Importance Estimator ($\rie$) not as a single handcrafted 
 \end{equation}
 where $f_i(u)$ represent standardized node centralities computed from the estimated routing graph $G$:
 \begin{enumerate}
-    \item \textbf{Broadcast Centrality ($f_{\text{bcast}}$):} Measures the extent to which a head acts as a global information source. Computed via PageRank on the transpose dependency matrix (reverse PageRank) \citep{page1999pagerank}:
+    \item \textbf{Broadcast Centrality ($f_{\text{bcast}}$):} Measures the extent to which a head acts as a global information source. Computed via PageRank on the transpose dependency matrix (reverse PageRank) \citep{page1999pagerank} as defined in Equation~\ref{eq:bcast}:
     \begin{equation}
         f_{\text{bcast}}(u) \;=\; d \sum_{v \ne u} \frac{D(v, u)}{\text{out-degree}(v)} f_{\text{bcast}}(v) + \frac{1-d}{N}
+        \label{eq:bcast}
     \end{equation}
-    \item \textbf{Receiver Centrality ($f_{\text{recv}}$):} Measures the extent to which a head acts as a global information sink. Computed via forward PageRank:
+    \item \textbf{Receiver Centrality ($f_{\text{recv}}$):} Measures the extent to which a head acts as a global information sink. Computed via forward PageRank as defined in Equation~\ref{eq:recv}:
     \begin{equation}
         f_{\text{recv}}(u) \;=\; d \sum_{v \ne u} \frac{D(u, v)}{\text{in-degree}(v)} f_{\text{recv}}(v) + \frac{1-d}{N}
+        \label{eq:recv}
     \end{equation}
-    \item \textbf{Injector Centrality ($f_{\text{inj}}$):} Measures local feedforward influence to the immediate next layer, representing direct downstream injection:
+    \item \textbf{Injector Centrality ($f_{\text{inj}}$):} Measures local feedforward influence to the immediate next layer, representing direct downstream injection as defined in Equation~\ref{eq:inj}:
     \begin{equation}
         f_{\text{inj}}(u) \;=\; \sum_{v \in \text{layer } l_u+1} D(u, v)
+        \label{eq:inj}
     \end{equation}
     \item \textbf{Betweenness Centrality ($f_{\text{bet}}$):} Measures local bottleneck intensity by calculating the proportion of shortest routing paths passing through a head \citep{freeman1977betweenness}.
 \end{enumerate}
 
 To instantiate this practically, we introduce the FLOOD algorithm. Pseudocode for RIE scoring and FLOOD pruning is detailed in Algorithm~\ref{alg:flood}.
+
+\paragraph{Takeaway.} The RIE family models attention-head necessity by framing representational routing as centrality in a directed flow network, parameterized to target sources and bottlenecks.
 
 \begin{algorithm}[H]
 \caption{RIE Scoring and FLOOD Attention Head Pruning}
@@ -281,9 +288,10 @@ To instantiate this practically, we introduce the FLOOD algorithm. Pseudocode fo
 Our centerpiece validation evaluates whether the routing descriptors explain experimentally measured causal damage (change in perplexity when a head is masked).
 
 \subsection{Standardized OLS Regression Progressions}
-We fit a multiple linear regression predicting causal damage from the four standardized RIE centralities:
+We fit a multiple linear regression predicting causal damage from the four standardized RIE centralities as defined in Equation~\ref{eq:ols}:
 \begin{equation}
     \text{Causal Damage} \;=\; \beta_0 + \beta_1 f_{\text{bcast}} + \beta_2 f_{\text{recv}} + \beta_3 f_{\text{inj}} + \beta_4 f_{\text{bet}} + \epsilon
+    \label{eq:ols}
 \end{equation}
 Table~\ref{tab:ols_results} compiles the standardized coefficients, 95\% bootstrap confidence intervals (CI), and variance inflation factors (VIF) across models.
 
@@ -301,12 +309,12 @@ Table~\ref{tab:ols_results} compiles the standardized coefficients, 95\% bootstr
 & Injector ($f_{\text{inj}}$) & 0.0335 & $[-0.0928, 0.1604]$ & 0.687431 & 2.11 \\
 & Betweenness ($f_{\text{bet}}$) & 0.1802 & $[-0.0093, 0.3719]$ & 0.062334 & 1.02 \\
 \midrule
-\multirow{4}{*}{\textbf{OPT-125m}} & Broadcast ($f_{\text{bcast}}$) & 0.6722 & $[0.2566, 1.0890]$ & 0.000000 & 1.09 \\
+\multirow{4}{*}{\textbf{OPT-125M}} & Broadcast ($f_{\text{bcast}}$) & 0.6722 & $[0.2566, 1.0890]$ & 0.000000 & 1.09 \\
 & Receiver ($f_{\text{recv}}$) & 0.2056 & $[0.0032, 0.4084]$ & 0.027351 & 2.14 \\
 & Injector ($f_{\text{inj}}$) & 0.1235 & $[0.0077, 0.2396]$ & 0.127502 & 2.11 \\
 & Betweenness ($f_{\text{bet}}$) & 0.1321 & $[-0.0023, 0.2667]$ & 0.110243 & 1.02 \\
 \midrule
-\multirow{4}{*}{\textbf{Pythia-160m}} & Broadcast ($f_{\text{bcast}}$) & 0.9155 & $[0.1591, 1.0661]$ & 0.000000 & 1.09 \\
+\multirow{4}{*}{\textbf{Pythia-160M}} & Broadcast ($f_{\text{bcast}}$) & 0.9155 & $[0.1591, 1.0661]$ & 0.000000 & 1.09 \\
 & Receiver ($f_{\text{recv}}$) & 0.1444 & $[-0.0801, 0.2830]$ & 0.011619 & 2.24 \\
 & Injector ($f_{\text{inj}}$) & 0.1147 & $[-0.0219, 0.2236]$ & 0.038395 & 2.12 \\
 & Betweenness ($f_{\text{bet}}$) & 0.0108 & $[-0.0547, 0.0412]$ & 0.776449 & 1.02 \\
@@ -337,13 +345,13 @@ Table~\ref{tab:ols_results} compiles the standardized coefficients, 95\% bootstr
     \draw[blue, thick] (0.1926, 3.1) -- (0.1926, 3.3);
     \draw[blue, thick] (1.2474, 3.1) -- (1.2474, 3.3);
     
-    % OPT-125m: 0.6722 [0.2566, 1.0890]
+    % OPT-125M: 0.6722 [0.2566, 1.0890]
     \draw[green!60!black, thick] (0.2566, 3.0) -- (1.0890, 3.0);
     \draw[green!60!black, fill=green!60!black] (0.6722, 3.0) circle (2.0pt);
     \draw[green!60!black, thick] (0.2566, 2.9) -- (0.2566, 3.1);
     \draw[green!60!black, thick] (1.0890, 2.9) -- (1.0890, 3.1);
     
-    % Pythia-160m: 0.9155 [0.1591, 1.0661]
+    % Pythia-160M: 0.9155 [0.1591, 1.0661]
     \draw[orange, thick] (0.1591, 2.8) -- (1.0661, 2.8);
     \draw[orange, fill=orange] (0.9155, 2.8) circle (2.0pt);
     \draw[orange, thick] (0.1591, 2.7) -- (0.1591, 2.9);
@@ -356,13 +364,13 @@ Table~\ref{tab:ols_results} compiles the standardized coefficients, 95\% bootstr
     \draw[blue, thick] (-0.0093, 2.1) -- (-0.0093, 2.3);
     \draw[blue, thick] (0.3719, 2.1) -- (0.3719, 2.3);
     
-    % OPT-125m: 0.1321 [-0.0023, 0.2667]
+    % OPT-125M: 0.1321 [-0.0023, 0.2667]
     \draw[green!60!black, thick] (-0.0023, 2.0) -- (0.2667, 2.0);
     \draw[green!60!black, fill=green!60!black] (0.1321, 2.0) circle (2.0pt);
     \draw[green!60!black, thick] (-0.0023, 1.9) -- (-0.0023, 2.1);
     \draw[green!60!black, thick] (0.2667, 1.9) -- (0.2667, 2.1);
     
-    % Pythia-160m: 0.0108 [-0.0547, 0.0412]
+    % Pythia-160M: 0.0108 [-0.0547, 0.0412]
     \draw[orange, thick] (-0.0547, 1.8) -- (0.0412, 1.8);
     \draw[orange, fill=orange] (0.0108, 1.8) circle (2.0pt);
     \draw[orange, thick] (-0.0547, 1.7) -- (-0.0547, 1.9);
@@ -375,13 +383,13 @@ Table~\ref{tab:ols_results} compiles the standardized coefficients, 95\% bootstr
     \draw[blue, thick] (-0.0499, 1.1) -- (-0.0499, 1.3);
     \draw[blue, thick] (0.3332, 1.1) -- (0.3332, 1.3);
     
-    % OPT-125m: 0.2056 [0.0032, 0.4084]
+    % OPT-125M: 0.2056 [0.0032, 0.4084]
     \draw[green!60!black, thick] (0.0032, 1.0) -- (0.4084, 1.0);
     \draw[green!60!black, fill=green!60!black] (0.2056, 1.0) circle (2.0pt);
     \draw[green!60!black, thick] (0.0032, 0.9) -- (0.0032, 1.1);
     \draw[green!60!black, thick] (0.4084, 0.9) -- (0.4084, 1.1);
     
-    % Pythia-160m: 0.1444 [-0.0801, 0.2830]
+    % Pythia-160M: 0.1444 [-0.0801, 0.2830]
     \draw[orange, thick] (-0.0801, 0.8) -- (0.2830, 0.8);
     \draw[orange, fill=orange] (0.1444, 0.8) circle (2.0pt);
     \draw[orange, thick] (-0.0801, 0.7) -- (-0.0801, 0.9);
@@ -394,13 +402,13 @@ Table~\ref{tab:ols_results} compiles the standardized coefficients, 95\% bootstr
     \draw[blue, thick] (-0.0928, 0.1) -- (-0.0928, 0.3);
     \draw[blue, thick] (0.1604, 0.1) -- (0.1604, 0.3);
     
-    % OPT-125m: 0.1235 [0.0077, 0.2396]
+    % OPT-125M: 0.1235 [0.0077, 0.2396]
     \draw[green!60!black, thick] (0.0077, 0.0) -- (0.2396, 0.0);
     \draw[green!60!black, fill=green!60!black] (0.1235, 0.0) circle (2.0pt);
     \draw[green!60!black, thick] (0.0077, -0.1) -- (0.0077, 0.1);
     \draw[green!60!black, thick] (0.2396, -0.1) -- (0.2396, 0.1);
     
-    % Pythia-160m: 0.1147 [-0.0219, -0.2]
+    % Pythia-160M: 0.1147 [-0.0219, -0.2]
     \draw[orange, thick] (-0.0219, -0.2) -- (0.2236, -0.2);
     \draw[orange, fill=orange] (0.1147, -0.2) circle (2.0pt);
     \draw[orange, thick] (-0.0219, -0.3) -- (-0.0219, -0.1);
@@ -416,16 +424,16 @@ Table~\ref{tab:ols_results} compiles the standardized coefficients, 95\% bootstr
     \node[draw, fill=white, rounded corners, font=\scriptsize, anchor=north east] at (1.4, 3.8) {
         \begin{tabular}{ll}
             \tikz\draw[blue, fill=blue] (0,0) circle (2pt); & GPT-2 Small \\
-            \tikz\draw[green!60!black, fill=green!60!black] (0,0) circle (2pt); & OPT-125m \\
-            \tikz\draw[orange, fill=orange] (0,0) circle (2pt); & Pythia-160m
+            \tikz\draw[green!60!black, fill=green!60!black] (0,0) circle (2pt); & OPT-125M \\
+            \tikz\draw[orange, fill=orange] (0,0) circle (2pt); & Pythia-160M
         \end{tabular}
     };
 \end{tikzpicture}
-\caption{OLS regression coefficients ($\beta$) with 95\% bootstrap confidence intervals (error bars) across three model families. Broadcast centrality is consistently the strongest predictor of causal damage.}
+\caption{Standardized OLS regression coefficients ($\beta$) with 95\% bootstrap confidence intervals (error bars) across three model families. Broadcast centrality is consistently the strongest source-like predictor of causal damage.}
 \label{fig:coefficients}
 \end{figure}
 
-Across the evaluated Pythia-160m attention heads, the linear model using four routing descriptors accounted for approximately 80.2\% of the variance in the measured causal damage ($R^2 = 0.8021$, Adj $R^2 = 0.7964$). We plot the standardized coefficients and their 95\% bootstrap confidence intervals in Figure~\ref{fig:coefficients}. In GPT-2 Small, the model explains 23.5\% of the variance, and in OPT-125m, it explains 65.4\% of the variance. Figure~\ref{fig:scatter_pagerank} shows the main validation scatter plots relating PageRank (Broadcast Centrality) directly to causal damage.
+Across the evaluated Pythia-160M attention heads, the linear model using four routing descriptors accounted for approximately 80.2\% of the variance in the measured causal damage ($R^2 = 0.8021$, Adj $R^2 = 0.7964$). We plot the standardized coefficients and their 95\% bootstrap confidence intervals in Figure~\ref{fig:coefficients}. In GPT-2 Small, the model explains 23.5\% of the variance, and in OPT-125M, it explains 65.4\% of the variance. Figure~\ref{fig:scatter_pagerank} shows the main validation scatter plots relating PageRank (Broadcast Centrality) directly to causal damage.
 
 \begin{figure}[t]
 \centering
@@ -438,23 +446,23 @@ Across the evaluated Pythia-160m attention heads, the linear model using four ro
 \begin{subfigure}[b]{0.32\textwidth}
     \centering
     \includegraphics[width=\textwidth]{facebook_opt_125m_pagerank_vs_causal_damage.png}
-    \caption{OPT-125m}
+    \caption{OPT-125M}
 \end{subfigure}
 \hfill
 \begin{subfigure}[b]{0.32\textwidth}
     \centering
     \includegraphics[width=\textwidth]{eleutherai_pythia_160m_pagerank_vs_causal_damage.png}
-    \caption{Pythia-160m}
+    \caption{Pythia-160M}
 \end{subfigure}
-\caption{Standardized causal damage vs. Broadcast Centrality (reverse PageRank) across attention heads. The OLS fit shows a strong, highly statistically significant relationship across architectures.}
+\caption{Standardized causal damage vs. Broadcast Centrality (reverse PageRank) across attention heads. The OLS fit demonstrates a strong, highly statistically significant relationship across architectures, validating that global routing descriptors predict causal nécessité.}
 \label{fig:scatter_pagerank}
 \end{figure}
 
 \subsection{Nested Model Progression and Effect Sizes}
 To justify the composite estimator formulation, we perform nested model regressions and $F$-tests:
 \begin{itemize}
-    \item \textbf{OPT-125m nested progression:} Model 1 (Broadcast only, $R^2 = 0.6343$) $\rightarrow$ Model 2 (+Receiver, $R^2 = 0.6468$). The addition of Receiver Centrality is statistically significant under an $F$-test ($p = 0.0274$) with an effect size of \textbf{Cohen's $f^2 = 0.0353$}.
-    \item \textbf{Pythia-160m nested progression:} Model 2 (+Receiver, $R^2 = 0.7957$) $\rightarrow$ Model 3 (+Injector, $R^2 = 0.8020$). The addition of Injector Centrality is statistically significant under an $F$-test ($p = 0.0377$) with an effect size of \textbf{Cohen's $f^2 = 0.0315$}.
+    \item \textbf{OPT-125M nested progression:} Model 1 (Broadcast only, $R^2 = 0.6343$) $\rightarrow$ Model 2 (+Receiver, $R^2 = 0.6468$). The addition of Receiver Centrality is statistically significant under an $F$-test ($p = 0.0274$) with an effect size of \textbf{Cohen's $f^2 = 0.0353$}.
+    \item \textbf{Pythia-160M nested progression:} Model 2 (+Receiver, $R^2 = 0.7957$) $\rightarrow$ Model 3 (+Injector, $R^2 = 0.8020$). The addition of Injector Centrality is statistically significant under an $F$-test ($p = 0.0377$) with an effect size of \textbf{Cohen's $f^2 = 0.0315$}.
 \end{itemize}
 
 \subsection{Controlling for Layer Index}
@@ -469,8 +477,8 @@ To verify that routing descriptors explain causal necessity beyond simple layer 
 \textbf{Model} & \textbf{Model A (Layer only) $R^2$} & \textbf{Model B (Layer + RIE) $R^2$} & \textbf{F-test p-value} & \textbf{Cohen's $f^2$} \\
 \midrule
 \textbf{GPT-2 Small} & 0.0589 & 0.2422 & $5.10 \times 10^{-6}$ & 0.2419 \\
-\textbf{OPT-125m} & 0.0943 & 0.6857 & $1.20 \times 10^{-12}$ & 1.8820 \\
-\textbf{Pythia-160m} & 0.0748 & 0.8336 & $2.40 \times 10^{-15}$ & 4.5600 \\
+\textbf{OPT-125M} & 0.0943 & 0.6857 & $1.20 \times 10^{-12}$ & 1.8820 \\
+\textbf{Pythia-160M} & 0.0748 & 0.8336 & $2.40 \times 10^{-15}$ & 4.5600 \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -492,15 +500,15 @@ To verify that routing descriptors explain causal necessity beyond simple layer 
     \draw[fill=blue!60] (1.8, 0) rectangle (2.6, 1.2110);
     \node[below, font=\small] at (1.8, -0.1) {GPT-2 Small};
     
-    % OPT-125m
+    % OPT-125M
     \draw[fill=gray!40] (4.5, 0) rectangle (5.3, 0.4715);
     \draw[fill=blue!60] (5.3, 0) rectangle (6.1, 3.4285);
-    \node[below, font=\small] at (5.3, -0.1) {OPT-125m};
+    \node[below, font=\small] at (5.3, -0.1) {OPT-125M};
     
-    % Pythia-160m
+    % Pythia-160M
     \draw[fill=gray!40] (8.0, 0) rectangle (8.8, 0.3740);
     \draw[fill=blue!60] (8.8, 0) rectangle (9.6, 4.1680);
-    \node[below, font=\small] at (8.8, -0.1) {Pythia-160m};
+    \node[below, font=\small] at (8.8, -0.1) {Pythia-160M};
     
     % Legend
     \node[draw, fill=white, rounded corners, font=\scriptsize, anchor=north east] at (10, 5.2) {
@@ -510,32 +518,34 @@ To verify that routing descriptors explain causal necessity beyond simple layer 
         \end{tabular}
     };
 \end{tikzpicture}
-\caption{Comparison of explained variance ($R^2$) between a layer-only baseline (Model A) and a model incorporating both layer depth and RIE descriptors (Model B). Adding RIE descriptors increases the explained variance by up to $11.1\times$ (Pythia-160m), demonstrating that network routing topology carries critical explanatory signal beyond simple layer depth.}
+\caption{Comparison of explained variance ($R^2$) between a layer-only baseline (Model A) and a model incorporating both layer depth and RIE descriptors (Model B). Adding RIE descriptors increases the explained variance by up to $11.1\times$ (Pythia-160M), demonstrating that network routing topology carries critical explanatory signal beyond simple layer depth.}
 \label{fig:layer_control}
 \end{figure}
 
-Under $F$-testing, adding the routing descriptors significantly improves the model over layer index alone ($p < 10^{-5}$) across all models, demonstrating massive effect sizes (up to Cohen's $f^2 = 4.56$ for Pythia-160m), as illustrated in Figure~\ref{fig:layer_control}. This confirms that structural descriptors explain causal necessity beyond simple layer depth.
+Under $F$-testing, adding the routing descriptors significantly improves the model over layer index alone ($p < 10^{-5}$) across all models, demonstrating massive effect sizes (up to Cohen's $f^2 = 4.56$ for Pythia-160M), as illustrated in Figure~\ref{fig:layer_control}. This confirms that structural descriptors explain causal necessity beyond simple layer depth.
 
 \subsection{Negative Control Shuffling Experiments}
 To demonstrate that the explanatory signal is driven strictly by the network graph topology, we ran a negative control where head indices and centrality values were randomly shuffled.
 \begin{itemize}
     \item \textbf{GPT-2 Small control $R^2$:} 0.0060 (collapsed from 0.2354)
-    \item \textbf{OPT-125m control $R^2$:} 0.0126 (collapsed from 0.6540)
-    \item \textbf{Pythia-160m control $R^2$:} 0.0088 (collapsed from 0.8021)
+    \item \textbf{OPT-125M control $R^2$:} 0.0126 (collapsed from 0.6540)
+    \item \textbf{Pythia-160M control $R^2$:} 0.0088 (collapsed from 0.8021)
 \end{itemize}
 The predictive performance collapses to near zero after disrupting the correspondence between graph descriptors and attention heads, supporting the interpretation that the correspondence between the estimated routing descriptors and attention heads carries the predictive signal.
 
 \subsection{Out-of-Distribution Transferability}
-We evaluate the transferability of the structural-causal link by training the OLS model on \textbf{GPT-2 Small + OPT-125m} combined and predicting the causal damage of \textbf{Pythia-70m} (an entirely different architecture/capacity class of 48 heads) zero-shot:
+We evaluate the transferability of the structural-causal link by training the OLS model on \textbf{GPT-2 Small + OPT-125M} combined and predicting the causal damage of \textbf{Pythia-70M} (an entirely different architecture/capacity class of 48 heads) zero-shot:
 \begin{itemize}
     \item \textbf{Spearman Rank Correlation ($\rho$):} 0.4693 ($p = 0.000767$, Highly Significant).
     \item \textbf{Pearson Correlation ($r$):} 0.8452 ($p = 0.000000$).
     \item \textbf{Shuffled Control Spearman ($\rho$):} 0.0582 ($p = 0.6943$, No Significance).
 \end{itemize}
-The high Pearson correlation relative to the Spearman correlation on Pythia-70m is due to the presence of high-magnitude outlier heads (e.g., `L00H02` and `L00H01`) that dominate the metric scale. The OLS model is exceptionally accurate at capturing the absolute scale and location of critical routing bottlenecks (top outliers), while containing local rank inversions among the low-importance heads.
+The high Pearson correlation relative to the Spearman correlation on Pythia-70M is due to the presence of high-magnitude outlier heads (e.g., `L00H02` and `L00H01`) that dominate the metric scale. The OLS model is exceptionally accurate at capturing the absolute scale and location of critical routing bottlenecks (top outliers), while containing local rank inversions among the low-importance heads.
 
 \subsection{Calibration Prompt Sensitivity}
 Averaging over 3 calibration prompts acts as a \textbf{variance filter}, successfully suppressing prompt-specific variance, increasing the correlation between individual prompt outcomes and the stabilized routing estimate from $\approx 0.12$ to $\approx 0.60$.
+
+\paragraph{Takeaway.} Causal damage regressions prove that structural routing centralities carry highly significant explanatory signal for attention head necessity beyond layer depth control and shuffling baselines.
 
 % ═════════════════════════════════════════════════════════════════════════════
 \section{Application: Downstream Head Pruning via FLOOD}
@@ -553,10 +563,10 @@ We evaluate the perplexity preservation of pruned models on WikiText-2 across va
 \toprule
 \textbf{Model} & \textbf{Budget} & \textbf{Baseline (0\%)} & \textbf{Gradient-Taylor} & \textbf{Magnitude} & \textbf{FLOOD-Simplified} & \textbf{FLOOD (Full)} \\
 \midrule
-\multirow{2}{*}{\textbf{OPT-125m}} & 10\% & 59.03 & 60.98 & 93.88 \small{$[82.2, 108.4]$} & 64.27 \small{$[57.4, 74.8]$} & 65.28 \small{$[58.5, 75.9]$} \\
+\multirow{2}{*}{\textbf{OPT-125M}} & 10\% & 59.03 & 60.98 & 93.88 \small{$[82.2, 108.4]$} & 64.27 \small{$[57.4, 74.8]$} & 65.28 \small{$[58.5, 75.9]$} \\
 & 30\% & 59.03 & 78.95 & 854.15 \small{$[731.2, 995.0]$} & \textbf{86.42} \small{$[77.7, 97.9]$} & 97.51 \small{$[86.0, 112.1]$} \\
 \midrule
-\multirow{2}{*}{\textbf{Pythia-160m}} & 10\% & 50.52 & 51.58 & 60.37 \small{$[52.9, 70.2]$} & 54.72 \small{$[48.3, 63.7]$} & 54.31 \small{$[48.4, 63.8]$} \\
+\multirow{2}{*}{\textbf{Pythia-160M}} & 10\% & 50.52 & 51.58 & 60.37 \small{$[52.9, 70.2]$} & 54.72 \small{$[48.3, 63.7]$} & 54.31 \small{$[48.4, 63.8]$} \\
 & 30\% & 50.52 & 61.07 & \textbf{80.60} \small{$[72.1, 93.5]$} & 82.81 \small{$[72.4, 97.9]$} & 96.79 \small{$[81.2, 119.9]$} \\
 \midrule
 \multirow{2}{*}{\textbf{GPT-2 Medium}} & 10\% & 38.23 & 39.03 & 52.53 \small{$[46.3, 60.7]$} & 40.44 \small{$[36.6, 45.3]$} & 40.82 \small{$[37.4, 45.7]$} \\
@@ -569,7 +579,7 @@ We evaluate the perplexity preservation of pruned models on WikiText-2 across va
 \begin{figure}[t]
 \centering
 \includegraphics[width=0.7\textwidth]{gpt2_flood_perplexity_vs_budget.png}
-\caption{Perplexity vs. pruning budget on WikiText-2 for GPT-2 Small. FLOOD methods closely track the oracle Gradient-Taylor curve while significantly outperforming the Magnitude baseline.}
+\caption{Language modeling perplexity vs. pruning budget on WikiText-2 for GPT-2 Small. FLOOD methods closely track the oracle Gradient-Taylor curve while significantly outperforming the Magnitude baseline.}
 \label{fig:pruning_budget}
 \end{figure}
 
@@ -578,19 +588,19 @@ We evaluate the perplexity preservation of pruned models on WikiText-2 across va
 \begin{subfigure}[b]{0.48\textwidth}
     \centering
     \includegraphics[width=\textwidth]{facebook_opt_125m_flood_perplexity_vs_budget.png}
-    \caption{OPT-125m}
+    \caption{OPT-125M}
 \end{subfigure}
 \hfill
 \begin{subfigure}[b]{0.48\textwidth}
     \centering
     \includegraphics[width=\textwidth]{eleutherai_pythia_160m_flood_perplexity_vs_budget.png}
-    \caption{Pythia-160m}
+    \caption{Pythia-160M}
 \end{subfigure}
-\caption{Perplexity vs. pruning budget curves for OPT-125m and Pythia-160m.}
+\caption{Perplexity vs. pruning budget curves for OPT-125M and Pythia-160M.}
 \label{fig:pruning_budget_extra}
 \end{figure}
 
-On GPT-2 Medium at a 30\% pruning budget, the full FLOOD estimator (51.28) preserves perplexity \textbf{$31\times$ better} than Magnitude pruning (1594.17). On OPT-125m, FLOOD-Simplified (86.42) performs \textbf{$10\times$ better} than Magnitude (854.15) and is statistically indistinguishable from the Gradient-Taylor benchmark ($p \approx 1.0$).
+On GPT-2 Medium at a 30\% pruning budget, the full FLOOD estimator (51.28) preserves perplexity \textbf{$31\times$ better} than Magnitude pruning (1594.17). On OPT-125M, FLOOD-Simplified (86.42) performs \textbf{$10\times$ better} than Magnitude (854.15) and is statistically indistinguishable from the Gradient-Taylor benchmark ($p \approx 1.0$).
 
 \subsection{Fine-Tuning Recovery}
 We track the perplexity recovery of pruned models when fine-tuning on a small corpus of 100 sequence samples (Figure~\ref{fig:recovery}). FLOOD-pruned models recover to baseline performance within 100 training steps, whereas magnitude-pruned models exhibit slow and unstable convergence.
@@ -598,26 +608,28 @@ We track the perplexity recovery of pruned models when fine-tuning on a small co
 \begin{figure}[t]
 \centering
 \includegraphics[width=0.7\textwidth]{gpt2_flood_finetuning_recovery.png}
-\caption{Perplexity recovery curves during fine-tuning on WikiText-2 for GPT-2 Small (30\% budget). FLOOD-pruned models converge rapidly and stably back to baseline perplexity.}
+\caption{Language modeling perplexity recovery curves during fine-tuning on WikiText-2 for GPT-2 Small at a 30\% pruning budget. FLOOD-pruned models converge rapidly and stably back to baseline performance compared to magnitude-based pruning.}
 \label{fig:recovery}
 \end{figure}
 
 \subsection{Topology Preservation}
 We evaluate the structural overlap between the baseline and pruned networks at a 30\% budget (Figure~\ref{fig:topology}):
 \begin{itemize}
-    \item \textbf{Subspace Alignment:} FLOOD preserves the downstream representational subspace alignment at \textbf{$> 0.99$} across OPT and Pythia-160m, compared to Magnitude's severe degradation.
+    \item \textbf{Subspace Alignment:} FLOOD preserves the downstream representational subspace alignment at \textbf{$> 0.99$} across OPT and Pythia-160M, compared to Magnitude's severe degradation.
     \item \textbf{Hub Overlap:} FLOOD achieves \textbf{100.0\%} overlap preservation of the primary routing hubs, showing that the central communication pathways remain intact.
 \end{itemize}
 
 \begin{figure}[t]
 \centering
 \includegraphics[width=0.7\textwidth]{gpt2_flood_topology_preservation.png}
-\caption{Downstream subspace alignment and routing hub overlap preservation under FLOOD vs. Magnitude pruning at a 30\% budget for GPT-2 Small.}
+\caption{Downstream representational subspace alignment and routing hub overlap preservation under FLOOD vs. Magnitude pruning at a 30\% budget for GPT-2 Small, showing that FLOOD preserves the model's communication backbone.}
 \label{fig:topology}
 \end{figure}
 
 \subsection{Computational and Resource Efficiency}
 Importantly, RIE descriptors are cheap to compute once the dependency matrix is extracted. Table~\ref{tab:latency} compares scoring latencies against the Gradient-Taylor benchmark. RIE combines centrality computation in \textbf{51.26 ms}, representing a \textbf{$40\times$ speedup} over Gradient-Taylor (2038.90 ms) which requires costly backward passes.
+
+\paragraph{Takeaway.} Guided by RIE centrality, the FLOOD pruning algorithm preserves downstream perplexity up to $31\times$ better than magnitude baselines while maintaining representational subspace and routing hub topology.
 
 \begin{table}[h]
 \centering
@@ -641,7 +653,7 @@ Gradient-Taylor & 2038.90 \\
 \toprule
 \textbf{Item} & \textbf{Value} \\
 \midrule
-Evaluated Models & GPT-2 Small, GPT-2 Medium, OPT-125m, Pythia-70m, Pythia-160m \\
+Evaluated Models & GPT-2 Small, GPT-2 Medium, OPT-125M, Pythia-70M, Pythia-160M \\
 Calibration Dataset & WikiText-2 \\
 Random Seeds & 1, 7, 13, 21, 42 \\
 Calibration Prompts & 3 (averaged to filter out prompt-specific variance) \\
@@ -704,9 +716,15 @@ Our results support the utility of estimated routing graphs as structural descri
 
 To synthesize the global progression of our program, Figure~\ref{fig:summary} displays a graphical summary of the Discovery $\rightarrow$ Validation $\rightarrow$ Application pipeline. This structured translation demonstrates the generalizability of routing dependency estimation beyond downstream model compression.
 
-\subsection{Limitations}
+\subsection{Limitations and Threats to Validity}
 \label{sec:limitations}
-While our findings generalize across several transformer families, the following limitations should be noted:
+While our findings generalize across several transformer families, we evaluate potential threats to validity and establish explicit limitations:
+
+\paragraph{Internal Threats.} The estimated routing dependency graph is constructed using a small calibration set of 3 prompts from WikiText-2. While our prompt sensitivity analysis (Section~\ref{sec:validation}) suggests aggregate variance stabilization, it remains possible that task-specific routing pathways are missed. Additionally, the dependency weight calculation (Equation~\ref{eq:dependency}) assumes a linear, first-order approximation of hidden representation shifts, which may simplify the non-linear interaction dynamics across multi-head self-attention.
+
+\paragraph{External Threats.} The architectural families evaluated (GPT-2, OPT, and Pythia) are decoder-only autoregressive language models. The generalizability of these findings to encoder-decoder configurations (e.g., T5) or encoder-only architectures (e.g., BERT) remains unverified. Furthermore, our structured pruning application (Section~\ref{sec:application}) focuses strictly on head-level pruning, and extending these network science metrics to MLP blocks or weight-level sparsity is an open challenge.
+
+\paragraph{Construct Threats.} The regression target (causal damage) represents change in language modeling perplexity. Downstream execution on complex reasoning or task-specific benchmarks might yield different head importance rankings. Lastly, the exploratory relationship between connectivity ($\lambda_2$), modularity ($Q$), and descriptor dominance is an empirical observation on four architectures and is not a mathematically proven scaling law.
 \begin{itemize}
     \item \textbf{Decoder-Only Architecture Restriction:} Our empirical evaluation is restricted to decoder-only autoregressive language models. We have not tested encoder-decoder (e.g., T5) or encoder-only (e.g., BERT) configurations.
     \item \textbf{Structured Head Pruning Focus:} We evaluated importance specifically at the self-attention head level. Analyzing MLP layer importance or fine-grained parameter pruning using similar graph-theoretic constructs remains unexplored.
@@ -716,9 +734,10 @@ While our findings generalize across several transformer families, the following
 \end{itemize}
 
 \subsection{Future Work: Adaptive RIE}
-These observations motivate future work in which the weighting coefficients of the RIE family are dynamically parameterized based on global graph statistics:
+These observations motivate future work in which the weighting coefficients of the RIE family are dynamically parameterized based on global graph statistics as shown in Equation~\ref{eq:adaptive_rie}:
 \begin{equation}
     RIE_{\theta} \;=\; \alpha_1(Q, \lambda_2) f_{\text{bcast}} + \alpha_2(Q, \lambda_2) f_{\text{recv}} + \alpha_3(Q, \lambda_2) f_{\text{inj}} + \alpha_4(Q, \lambda_2) f_{\text{bet}}
+    \label{eq:adaptive_rie}
 \end{equation}
 By learning $\alpha_i$ as a function of Modularity $Q$ and Fiedler value $\lambda_2$, subsequent work will evaluate adaptive structural estimation across highly modular or cohesive transformer attention networks.
 
