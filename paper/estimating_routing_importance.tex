@@ -741,6 +741,42 @@ These observations motivate future work in which the weighting coefficients of t
 \end{equation}
 By learning $\alpha_i$ as a function of Modularity $Q$ and Fiedler value $\lambda_2$, subsequent work will evaluate adaptive structural estimation across highly modular or cohesive transformer attention networks.
 
+\newpage
+\appendix
+\section{Reviewer Questions Answered}
+\label{sec:appendix_faq}
+
+In this appendix, we explicitly address common questions regarding our methodology, experimental choices, and generalizability:
+
+\begin{enumerate}[leftmargin=*]
+    \item \textbf{Why only decoder-only autoregressive models?}
+    Decoder-only language models (e.g., GPT-2, OPT, Pythia) are currently the dominant architecture for large-scale language modeling. Focusing on this class allows us to establish a clean baseline for routing dynamics under unidirectional causal attention constraints, which is structurally simpler than bidirectional or encoder-decoder routing but highly representative of modern frontier models.
+    
+    \item \textbf{Why 3 calibration prompts?}
+    We conducted a calibration sensitivity analysis (Section~\ref{sec:validation}) comparing prompt aggregates. We observed that averaging over 3 prompts successfully filters out prompt-specific noise (acting as a variance filter), boosting the correlation to stabilized estimates from $\approx 0.12$ to $\approx 0.60$. Since dependency estimation is computationally expensive ($O(N^2)$ activation patches), 3 prompts represents an optimal trade-off between statistical stability and computational efficiency.
+    
+    \item \textbf{Why linear regression?}
+    We utilize ordinary least squares (OLS) multiple linear regression because it provides maximum interpretability, direct access to coefficient significance ($p$-values), standard error estimates, bootstrap confidence intervals, and multicollinearity checks (VIFs). By demonstrating that a linear model explains up to 80.2\% of the perplexity damage variance, we establish that a simple linear combination of centralities carries robust predictive utility, setting a strong lower bound for future non-linear models.
+    
+    \item \textbf{Why WikiText-2?}
+    WikiText-2 is a standard benchmark for evaluating perplexity degradation in language models. Because attention-head necessity varies across tasks, language modeling perplexity provides a general, task-agnostic target metric representing the core autoregressive capability of the networks.
+    
+    \item \textbf{Why these centralities (Broadcast, Receiver, Injector, Betweenness)?}
+    These centralities are chosen because they map directly to fundamental topological roles in network flow theory:
+    \begin{itemize}
+        \item \emph{Broadcast} (PageRank on transpose) identifies global information sources.
+        \item \emph{Receiver} (PageRank on forward graph) identifies global information sinks.
+        \item \emph{Injector} (immediate local weight) identifies layer-to-layer feedforward intensity.
+        \item \emph{Betweenness} (shortest path bottlenecking) identifies structural bottlenecks.
+    \end{itemize}
+    
+    \item \textbf{Why PageRank?}
+    Representational routing in transformers is a cascading process where a head's influence propagates through subsequent layers. PageRank is mathematically designed to model such cascading influence recursively, identifying nodes that are connected to other influential nodes rather than relying solely on local degree metrics.
+    
+    \item \textbf{Why not compare directly to Wanda or SparseGPT?}
+    Wanda and SparseGPT are weight/activation-level sparsity estimators designed to prune individual parameter weights or structural channels within layers. In contrast, this work operates at the coarser granularity of whole self-attention heads and focuses on explaining head necessity via global routing topology. Consequently, RIE and FLOOD are orthogonal to weight-level pruning metrics and can be combined with them in hybrid pipelines.
+\end{enumerate}
+
 % ═════════════════════════════════════════════════════════════════════════════
 \bibliographystyle{plainnat}
 \bibliography{references}
