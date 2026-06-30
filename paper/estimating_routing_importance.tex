@@ -735,6 +735,7 @@ Gradient-Taylor & 2038.90 \\
 \centering
 \caption{Experimental Protocol and Hyperparameter Configuration. The table details the evaluated models, evaluation datasets, calibration parameters (prompts and seeds), statistical significance settings (resamples and permutations), hardware environments, and network science constants (damping factor) used to ensure full scientific reproducibility.}
 \label{tab:protocol}
+\resizebox{\columnwidth}{!}{%
 \begin{tabular}{ll}
 \toprule
 \textbf{Item} & \textbf{Value} \\
@@ -748,7 +749,8 @@ Permutations & 10000 \\
 Hardware Used & Single NVIDIA A10G Tensor Core GPU \\
 PageRank Damping Factor & $d = 0.85$ \\
 \bottomrule
-\end{tabular}
+\end{tabular}%
+}
 \end{table}
 
 % ═════════════════════════════════════════════════════════════════════════════
