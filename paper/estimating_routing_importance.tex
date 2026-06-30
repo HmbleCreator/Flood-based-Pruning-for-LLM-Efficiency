@@ -209,10 +209,10 @@ Figure~\ref{fig:dep_network} shows an example of the estimated routing dependenc
 \toprule
 \textbf{Model} & \textbf{Total Heads ($N$)} & \textbf{Algebraic Connectivity ($\lambda_2$)} & \textbf{Graph Modularity ($Q$)} & \textbf{Dominant Descriptor} \\
 \midrule
-\textbf{OPT-125M} & 144 & 5.6392 & 0.0609 & \textbf{Bridge-Only} \\
-\textbf{Pythia-160M} & 144 & 4.6339 & 0.0920 & \textbf{Broadcast-Only} \\
-\textbf{GPT-2 Small} & 144 & 2.6931 & 0.1730 & \textbf{Broadcast-Only} \\
-\textbf{Pythia-70M} & 48 & 1.7978 & 0.2201 & \textbf{Mixed} \\
+\textbf{GPT-2 Small} & 144 & 3.8539 & 0.0495 & \textbf{Broadcast-Only} \\
+\textbf{OPT-125M} & 144 & 2.8196 & 0.0609 & \textbf{Bridge-Only} \\
+\textbf{Pythia-160M} & 144 & 2.3169 & 0.0920 & \textbf{Broadcast-Only} \\
+\textbf{Pythia-70M} & 48 & 1.7978 & 0.0946 & \textbf{Mixed} \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -304,15 +304,15 @@ Table~\ref{tab:ols_results} compiles the standardized coefficients, 95\% bootstr
 \toprule
 \textbf{Model} & \textbf{Descriptor} & \textbf{Standardized Coeff. ($\beta$)} & \textbf{Bootstrap 95\% CI} & \textbf{p-value} & \textbf{VIF} \\
 \midrule
-\multirow{4}{*}{\textbf{GPT-2 Small}} & Broadcast ($f_{\text{bcast}}$) & 0.4851 & $[0.1926, 1.2474]$ & 0.000000 & 1.09 \\
-& Receiver ($f_{\text{recv}}$) & 0.1416 & $[-0.0499, 0.3332]$ & 0.088652 & 2.14 \\
-& Injector ($f_{\text{inj}}$) & 0.0335 & $[-0.0928, 0.1604]$ & 0.687431 & 2.11 \\
-& Betweenness ($f_{\text{bet}}$) & 0.1802 & $[-0.0093, 0.3719]$ & 0.062334 & 1.02 \\
+\multirow{4}{*}{\textbf{GPT-2 Small}} & Broadcast ($f_{\text{bcast}}$) & 0.5040 & $[0.1926, 1.2474]$ & 0.000000 & 1.27 \\
+& Receiver ($f_{\text{recv}}$) & 0.0630 & $[-0.0499, 0.3332]$ & 0.662492 & 3.78 \\
+& Injector ($f_{\text{inj}}$) & 0.0194 & $[-0.0928, 0.1604]$ & 0.885666 & 3.31 \\
+& Betweenness ($f_{\text{bet}}$) & 0.0045 & $[-0.0093, 0.3719]$ & 0.951668 & 1.01 \\
 \midrule
-\multirow{4}{*}{\textbf{OPT-125M}} & Broadcast ($f_{\text{bcast}}$) & 0.6722 & $[0.2566, 1.0890]$ & 0.000000 & 1.09 \\
-& Receiver ($f_{\text{recv}}$) & 0.2056 & $[0.0032, 0.4084]$ & 0.027351 & 2.14 \\
-& Injector ($f_{\text{inj}}$) & 0.1235 & $[0.0077, 0.2396]$ & 0.127502 & 2.11 \\
-& Betweenness ($f_{\text{bet}}$) & 0.1321 & $[-0.0023, 0.2667]$ & 0.110243 & 1.02 \\
+\multirow{4}{*}{\textbf{OPT-125M}} & Broadcast ($f_{\text{bcast}}$) & 0.8650 & $[0.2566, 1.0890]$ & 0.000000 & 1.24 \\
+& Receiver ($f_{\text{recv}}$) & 0.2399 & $[0.0032, 0.4084]$ & 0.009197 & 3.31 \\
+& Injector ($f_{\text{inj}}$) & 0.1355 & $[0.0077, 0.2396]$ & 0.113875 & 2.91 \\
+& Betweenness ($f_{\text{bet}}$) & 0.0377 & $[-0.0023, 0.2667]$ & 0.457143 & 1.03 \\
 \midrule
 \multirow{4}{*}{\textbf{Pythia-160M}} & Broadcast ($f_{\text{bcast}}$) & 0.9155 & $[0.1591, 1.0661]$ & 0.000000 & 1.09 \\
 & Receiver ($f_{\text{recv}}$) & 0.1444 & $[-0.0801, 0.2830]$ & 0.011619 & 2.24 \\
@@ -339,15 +339,15 @@ Table~\ref{tab:ols_results} compiles the standardized coefficients, 95\% bootstr
     \draw[red!70!black, thick, dashed] (0, -0.6) -- (0, 3.5) node[above, font=\scriptsize] {Zero effect};
     
     % Y=3: Broadcast
-    % GPT-2: 0.4851 [0.1926, 1.2474]
+    % GPT-2: 0.5040 [0.1926, 1.2474]
     \draw[blue, thick] (0.1926, 3.2) -- (1.2474, 3.2);
-    \draw[blue, fill=blue] (0.4851, 3.2) circle (2.0pt);
+    \draw[blue, fill=blue] (0.5040, 3.2) circle (2.0pt);
     \draw[blue, thick] (0.1926, 3.1) -- (0.1926, 3.3);
     \draw[blue, thick] (1.2474, 3.1) -- (1.2474, 3.3);
     
-    % OPT-125M: 0.6722 [0.2566, 1.0890]
+    % OPT-125M: 0.8650 [0.2566, 1.0890]
     \draw[green!60!black, thick] (0.2566, 3.0) -- (1.0890, 3.0);
-    \draw[green!60!black, fill=green!60!black] (0.6722, 3.0) circle (2.0pt);
+    \draw[green!60!black, fill=green!60!black] (0.8650, 3.0) circle (2.0pt);
     \draw[green!60!black, thick] (0.2566, 2.9) -- (0.2566, 3.1);
     \draw[green!60!black, thick] (1.0890, 2.9) -- (1.0890, 3.1);
     
@@ -358,15 +358,15 @@ Table~\ref{tab:ols_results} compiles the standardized coefficients, 95\% bootstr
     \draw[orange, thick] (1.0661, 2.7) -- (1.0661, 2.9);
     
     % Y=2: Betweenness
-    % GPT-2: 0.1802 [-0.0093, 0.3719]
+    % GPT-2: 0.0045 [-0.0093, 0.3719]
     \draw[blue, thick] (-0.0093, 2.2) -- (0.3719, 2.2);
-    \draw[blue, fill=blue] (0.1802, 2.2) circle (2.0pt);
+    \draw[blue, fill=blue] (0.0045, 2.2) circle (2.0pt);
     \draw[blue, thick] (-0.0093, 2.1) -- (-0.0093, 2.3);
     \draw[blue, thick] (0.3719, 2.1) -- (0.3719, 2.3);
     
-    % OPT-125M: 0.1321 [-0.0023, 0.2667]
+    % OPT-125M: 0.0377 [-0.0023, 0.2667]
     \draw[green!60!black, thick] (-0.0023, 2.0) -- (0.2667, 2.0);
-    \draw[green!60!black, fill=green!60!black] (0.1321, 2.0) circle (2.0pt);
+    \draw[green!60!black, fill=green!60!black] (0.0377, 2.0) circle (2.0pt);
     \draw[green!60!black, thick] (-0.0023, 1.9) -- (-0.0023, 2.1);
     \draw[green!60!black, thick] (0.2667, 1.9) -- (0.2667, 2.1);
     
@@ -377,15 +377,15 @@ Table~\ref{tab:ols_results} compiles the standardized coefficients, 95\% bootstr
     \draw[orange, thick] (0.0412, 1.7) -- (0.0412, 1.9);
     
     % Y=1: Receiver
-    % GPT-2: 0.1416 [-0.0499, 0.3332]
+    % GPT-2: 0.0630 [-0.0499, 0.3332]
     \draw[blue, thick] (-0.0499, 1.2) -- (0.3332, 1.2);
-    \draw[blue, fill=blue] (0.1416, 1.2) circle (2.0pt);
+    \draw[blue, fill=blue] (0.0630, 1.2) circle (2.0pt);
     \draw[blue, thick] (-0.0499, 1.1) -- (-0.0499, 1.3);
     \draw[blue, thick] (0.3332, 1.1) -- (0.3332, 1.3);
     
-    % OPT-125M: 0.2056 [0.0032, 0.4084]
+    % OPT-125M: 0.2399 [0.0032, 0.4084]
     \draw[green!60!black, thick] (0.0032, 1.0) -- (0.4084, 1.0);
-    \draw[green!60!black, fill=green!60!black] (0.2056, 1.0) circle (2.0pt);
+    \draw[green!60!black, fill=green!60!black] (0.2399, 1.0) circle (2.0pt);
     \draw[green!60!black, thick] (0.0032, 0.9) -- (0.0032, 1.1);
     \draw[green!60!black, thick] (0.4084, 0.9) -- (0.4084, 1.1);
     
@@ -396,15 +396,15 @@ Table~\ref{tab:ols_results} compiles the standardized coefficients, 95\% bootstr
     \draw[orange, thick] (0.2830, 0.7) -- (0.2830, 0.9);
     
     % Y=0: Injector
-    % GPT-2: 0.0335 [-0.0928, 0.1604]
+    % GPT-2: 0.0194 [-0.0928, 0.1604]
     \draw[blue, thick] (-0.0928, 0.2) -- (0.1604, 0.2);
-    \draw[blue, fill=blue] (0.0335, 0.2) circle (2.0pt);
+    \draw[blue, fill=blue] (0.0194, 0.2) circle (2.0pt);
     \draw[blue, thick] (-0.0928, 0.1) -- (-0.0928, 0.3);
     \draw[blue, thick] (0.1604, 0.1) -- (0.1604, 0.3);
     
-    % OPT-125M: 0.1235 [0.0077, 0.2396]
+    % OPT-125M: 0.1355 [0.0077, 0.2396]
     \draw[green!60!black, thick] (0.0077, 0.0) -- (0.2396, 0.0);
-    \draw[green!60!black, fill=green!60!black] (0.1235, 0.0) circle (2.0pt);
+    \draw[green!60!black, fill=green!60!black] (0.1355, 0.0) circle (2.0pt);
     \draw[green!60!black, thick] (0.0077, -0.1) -- (0.0077, 0.1);
     \draw[green!60!black, thick] (0.2396, -0.1) -- (0.2396, 0.1);
     
@@ -569,8 +569,8 @@ We evaluate the perplexity preservation of pruned models on WikiText-2 across va
 \multirow{2}{*}{\textbf{Pythia-160M}} & 10\% & 50.52 & 51.58 & 60.37 \small{$[52.9, 70.2]$} & 54.72 \small{$[48.3, 63.7]$} & 54.31 \small{$[48.4, 63.8]$} \\
 & 30\% & 50.52 & 61.07 & \textbf{80.60} \small{$[72.1, 93.5]$} & 82.81 \small{$[72.4, 97.9]$} & 96.79 \small{$[81.2, 119.9]$} \\
 \midrule
-\multirow{2}{*}{\textbf{GPT-2 Medium}} & 10\% & 38.23 & 39.03 & 52.53 \small{$[46.3, 60.7]$} & 40.44 \small{$[36.6, 45.3]$} & 40.82 \small{$[37.4, 45.7]$} \\
-& 30\% & 38.23 & 46.86 & 1594.17 \small{$[1352.3, 1817.7]$} & 128.51 \small{$[113.1, 151.1]$} & \textbf{51.28} \small{$[46.4, 57.8]$} \\
+\multirow{2}{*}{\textbf{GPT-2 Medium}} & 10\% & 38.23 & 39.03 & 52.53 \small{$[46.3, 60.7]$} & 40.45 \small{$[36.6, 45.3]$} & 40.83 \small{$[37.4, 45.7]$} \\
+& 30\% & 38.23 & 46.86 & 1594.18 \small{$[1352.3, 1817.7]$} & 128.52 \small{$[113.1, 151.1]$} & \textbf{51.28} \small{$[46.4, 57.8]$} \\
 \bottomrule
 \end{tabular}%
 }
@@ -600,7 +600,7 @@ We evaluate the perplexity preservation of pruned models on WikiText-2 across va
 \label{fig:pruning_budget_extra}
 \end{figure}
 
-On GPT-2 Medium at a 30\% pruning budget, the full FLOOD estimator (51.28) preserves perplexity \textbf{$31\times$ better} than Magnitude pruning (1594.17). On OPT-125M, FLOOD-Simplified (86.42) performs \textbf{$10\times$ better} than Magnitude (854.15) and is statistically indistinguishable from the Gradient-Taylor benchmark ($p \approx 1.0$).
+On GPT-2 Medium at a 30\% pruning budget, the full FLOOD estimator (51.28) preserves perplexity \textbf{$31\times$ better} than Magnitude pruning (1594.18). On OPT-125M, FLOOD-Simplified (86.42) performs \textbf{$10\times$ better} than Magnitude (854.15) and is statistically indistinguishable from the Gradient-Taylor benchmark ($p \approx 1.0$).
 
 \subsection{Fine-Tuning Recovery}
 We track the perplexity recovery of pruned models when fine-tuning on a small corpus of 100 sequence samples (Figure~\ref{fig:recovery}). FLOOD-pruned models recover to baseline performance within 100 training steps, whereas magnitude-pruned models exhibit slow and unstable convergence.
