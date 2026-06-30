@@ -113,7 +113,7 @@ To guide the reader, a comprehensive visual overview of our conceptual pipeline 
     line/.style={draw, -latex', thick},
     title/.style={font=\scriptsize\bfseries}
 ]
-    % Nodes
+    % --- First Row ---
     % Stage 1: Perturbation
     \node [box] (pert) {
         \textbf{1. Perturbation}\\
@@ -157,8 +157,9 @@ To guide the reader, a comprehensive visual overview of our conceptual pipeline 
         $f_{\text{bet}}$: Bottlenecks
     };
     
-    % Stage 4: Validation
-    \node [box, right=0.8cm of desc_node] (val) {
+    % --- Second Row ---
+    % Stage 4: Validation (placed below pert)
+    \node [box, below=0.8cm of pert] (val) {
         \textbf{4. Validation}\\
         \vspace{0.05cm}
         OLS Regression\\
@@ -167,7 +168,7 @@ To guide the reader, a comprehensive visual overview of our conceptual pipeline 
         $p < 10^{-5}$ vs. depth
     };
     
-    % Stage 5: FLOOD Pruning
+    % Stage 5: FLOOD Pruning (placed below graph)
     \node [box, right=0.8cm of val] (flood) {
         \textbf{5. FLOOD Pruning}\\
         \vspace{0.05cm}
@@ -176,7 +177,7 @@ To guide the reader, a comprehensive visual overview of our conceptual pipeline 
         and mask lowest
     };
     
-    % Stage 6: Performance
+    % Stage 6: Performance (placed below desc_node)
     \node [box, right=0.8cm of flood] (perf) {
         \textbf{6. Performance}\\
         \vspace{0.05cm}
@@ -186,12 +187,16 @@ To guide the reader, a comprehensive visual overview of our conceptual pipeline 
         preserves topology
     };
     
-    % Arrows
+    % --- Arrows Row 1 ---
     \draw [line] (pert) -- (graph);
     \draw [line] (graph) -- (desc_node);
-    \draw [line] (desc_node) -- (val);
+    
+    % --- Arrows Row 2 ---
     \draw [line] (val) -- (flood);
     \draw [line] (flood) -- (perf);
+    
+    % --- Connector between rows ---
+    \draw [line] (desc_node) -- (val);
     
 \end{tikzpicture}
 \caption{Overall pipeline of our research program: (1) Systematic causal perturbation interventions are conducted to measure pairwise representational shifts across attention heads. (2) These shifts are compiled into a global directed routing dependency graph $G$. (3) Node centrality metrics are computed to extract routing descriptors characterizing structural roles (sources, sinks, local injectors, bottlenecks). (4) The causal relevance of these descriptors is validated through ordinary least squares (OLS) multiple linear regressions, demonstrating high explanatory power ($R^2$ up to 80.2\%) over experimentally measured head damage. (5) FLOOD exploits this verified structural-causal link to score heads. (6) FLOOD-pruned models preserve language modeling perplexity up to $31\times$ better than magnitude-based pruning while maintaining representational topology.}
