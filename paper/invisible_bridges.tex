@@ -180,6 +180,14 @@ compensates for.
     (Section~\ref{sec:domain_results}).
 \end{enumerate}
 
+\paragraph{Why this paper?}
+This paper is driven by a single question: \emph{Can an attention head be
+causally indispensable even when its weight magnitude is among the smallest
+in the network?} Magnitude-based pruning answers this question in the
+negative by construction. We show that the answer is yes---and that a
+simple, gradient-free observational metric recovers these heads,
+challenging a core assumption of neural-network pruning.
+
 % ═════════════════════════════════════════════════════════════════════════════
 \section{Related Work}
 \label{sec:related}
@@ -771,8 +779,9 @@ previous-token) attention patterns, while L00H00 shows off-diagonal,
 long-range structure that varies with domain.
 We interpret this as consistent with a head integrating information from
 distant positions to construct routing signals that downstream layers
-build upon a structurally diffuse role that appears low-importance by
-weight magnitude but is foundational for downstream computation.
+build upon. The head thus plays a structurally diffuse role: it appears
+low-importance by weight magnitude, yet is foundational for downstream
+computation.
 
 \paragraph{Per-token loss maps.}
 Ablating L00H07 produces concentrated per-token loss increases on

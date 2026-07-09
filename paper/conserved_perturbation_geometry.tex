@@ -86,6 +86,19 @@ Our empirical results reveal a striking geometric constraint: downstream perturb
 
 Within this shared highway, we find that the intrinsic dimensionality of the routing subspace is extremely low across all models (Participation Ratio $\approx 1.1$--$3.2$), while the dominant singular component explains over 90\% of all downstream variance. Finally, we characterize the role of causally critical ``bridge'' heads within this framework. We show that bridge heads are not outliers in the direction of their downstream influence; instead, they are \textbf{localized amplitude injectors} that drive disproportionately larger perturbations along the same shared routing subspace.
 
+\paragraph{Why this paper?}
+This paper is driven by a single question: \emph{Do downstream representation
+perturbations in a transformer collapse onto a shared, low-dimensional
+routing manifold?} Prior mechanistic-interpretability work frames routing
+as discrete, localized circuits; we instead ask whether the global
+propagation of representation shifts is geometrically constrained. By
+mapping ablations across every layer of four model families and analyzing
+the resulting influence matrices via singular-value decomposition, we find
+that perturbations from different source layers align to a nearly invariant
+dominant direction while remaining extremely low-dimensional---suggesting
+that routing is organized around a conserved subspace that complements,
+rather than contradicts, localized circuit computation.
+
 % ═════════════════════════════════════════════════════════════════════════════
 \section{Methods: Mapping Downstream Representation Geometry}
 \label{sec:methods}
@@ -310,7 +323,7 @@ To validate whether the dominant routing directions identified by SVD are functi
 
     \item \textbf{Experiment B: SVD Component Comparison.} To test whether the first singular direction exhibits the most consistent functional effect among the tested components, we compare multi-layer projections using $u_1$ vs. $u_2$, $u_3$, and $u_4$ across layers 0--4 simultaneously. As shown in Table~\ref{tab:svd_component_comparison}, $u_1$ produces the highest KL divergence ($0.060 \pm 0.004$) and is significantly larger than $u_2$ ($0.053 \pm 0.002$; Wilcoxon $p = 0.009$). However, $u_3$ produces a KL divergence ($0.059 \pm 0.004$) that is not significantly different from $u_1$ ($p = 0.300$), suggesting that functional importance is not perfectly predicted by singular value magnitude alone. This indicates that the first few singular directions may all encode meaningful routing structure, although $u_1$ remains the most consistently important across layers.
 
-    \item \textbf{Experiment C: Multi-Layer Simultaneous Projection.} We project out $u_1^{(l)}$ at \emph{all layers 0--4 simultaneously} and sweep $\alpha \in [0.1, 1.0]$. As shown in Table~\ref{tab:multi_layer_projection}, the cumulative effect grows monotonically with $\alpha$, reaching $1.20\times$ at $\alpha = 1.0$ (Wilcoxon $p = 0.015$), confirming that the multi-layer intervention compounds across layers.
+    \item \textbf{Experiment C: Multi-Layer Simultaneous Projection.} We project out $u_1^{(l)}$ at \emph{all layers 0--4 simultaneously} and sweep $\alpha \in [0.1, 1.0]$. As shown in Table~\ref{tab:multi_layer_projection}, the cumulative effect grows monotonically with $\alpha$, reaching $1.20\times$ at $\alpha = 1.0$ (Wilcoxon $p = 0.015$), consistent with the multi-layer intervention compounding across layers.
 
     \item \textbf{Node Redundancy vs. Specialization:} We rank downstream attention heads by their contribution (weight) in the dominant right singular vector $v_1$ of the influence matrix. We then compare the impact of ablating the top-$K$ heads (which participate heavily in the shared routing manifold) vs. the bottom-$K$ heads (which reside outside of it). As shown in Figure~\ref{fig:functional_node_importance}, ablating the bottom-$K$ heads causes a catastrophic degradation in prediction quality (e.g., at $K=4$, Bottom-$K$ KL = $0.260 \pm 0.009$ vs. Top-$K$ KL = $0.093 \pm 0.006$, a $2.8\times$ increase). These results are consistent with the hypothesis that heads with larger contributions to the shared routing subspace participate in more distributed, redundant computations, whereas heads with smaller contributions may support more specialized, non-redundant computations whose removal cannot be compensated for by the shared highway.
 \end{enumerate}

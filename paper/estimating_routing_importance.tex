@@ -68,7 +68,7 @@
 % ── Abstract ─────────────────────────────────────────────────────────────────
 \begin{abstract}
 \noindent
-Understanding how information is routed through transformer attention heads is a central challenge in mechanistic interpretability. While existing approaches primarily focus on identifying discrete circuit subgraphs, we investigate whether attention-head necessity can be explained by structural properties of a global routing network. We estimate a directed routing dependency graph over attention heads using causal interventions and derive a family of Routing Importance Estimators ($\rie$) based on node centralities. Through OLS regressions across multiple transformer families (GPT-2, OPT, and Pythia), we demonstrate that these structural routing descriptors explain a substantial fraction of the observed variance in experimentally measured causal head damage (up to 80\% of the variance). Under $F$-testing, these estimators retain highly significant explanatory power beyond simple architectural priors such as layer depth, showing massive effect sizes. Random shuffling of the head-descriptor correspondence collapses the explained variance to near zero, confirming that the predictive performance is driven strictly by the underlying network topology. Finally, we instantiate the practical utility of these estimators through FLOOD, a routing-aware pruning algorithm that preserves language modeling perplexity up to $31\times$ better than magnitude-based baselines while maintaining the topological properties of the underlying representation space.
+Understanding how information is routed through transformer attention heads is a central challenge in mechanistic interpretability. While existing approaches primarily focus on identifying discrete circuit subgraphs, we investigate whether attention-head necessity can be explained by structural properties of a global routing network. We estimate a directed routing dependency graph over attention heads using causal interventions and derive a family of Routing Importance Estimators ($\rie$) based on node centralities. Through OLS regressions across multiple transformer families (GPT-2, OPT, and Pythia), we demonstrate that these structural routing descriptors explain a substantial fraction of the observed variance in experimentally measured causal head damage (up to 80\% of the variance). Under $F$-testing, these estimators retain highly significant explanatory power beyond simple architectural priors such as layer depth, showing massive effect sizes. Random shuffling of the head-descriptor correspondence collapses the explained variance to near zero, consistent with the predictive performance being driven strictly by the underlying network topology. Finally, we instantiate the practical utility of these estimators through FLOOD, a routing-aware pruning algorithm that preserves language modeling perplexity up to $31\times$ better than magnitude-based baselines while maintaining the topological properties of the underlying representation space.
 \end{abstract}
 
 \newpage
@@ -373,7 +373,7 @@ To instantiate this practically, we introduce the FLOOD algorithm. Pseudocode fo
 \section{Validation: Causal Damage Regressions}
 \label{sec:validation}
 
-Our centerpiece validation evaluates whether the routing descriptors explain experimentally measured causal damage (change in perplexity when a head is masked).
+Our centerpiece validation evaluates whether the routing descriptors explain the variance in experimentally measured causal damage (change in perplexity when a head is masked).
 
 \subsection{Standardized OLS Regression Progressions}
 We fit a multiple linear regression predicting causal damage from the four standardized RIE centralities as defined in Equation~\ref{eq:ols}:
@@ -542,7 +542,7 @@ Across the evaluated Pythia-160M attention heads, the linear model using four ro
     \includegraphics[width=\textwidth]{eleutherai_pythia_160m_pagerank_vs_causal_damage.png}
     \caption{Pythia-160M}
 \end{subfigure}
-\caption{Standardized causal damage (perplexity increase under masking) vs. Broadcast Centrality (reverse PageRank) across attention heads in GPT-2 Small (left), OPT-125M (center), and Pythia-160M (right). Circles represent individual attention heads, and the solid lines denote the linear regression fits. Across all three model families, there is a strong, highly statistically significant positive relationship ($p < 0.001$), confirming that structural routing centralities reliably predict causal necessity without requiring task-specific dataset evaluations.}
+\caption{Standardized causal damage (perplexity increase under masking) vs. Broadcast Centrality (reverse PageRank) across attention heads in GPT-2 Small (left), OPT-125M (center), and Pythia-160M (right). Circles represent individual attention heads, and the solid lines denote the linear regression fits. Across all three model families, there is a strong, highly statistically significant positive relationship ($p < 0.001$), consistent with the interpretation that structural routing centralities reliably predict causal necessity without requiring task-specific dataset evaluations.}
 \label{fig:scatter_pagerank}
 \end{figure}
 
@@ -612,7 +612,7 @@ To verify that routing descriptors explain causal necessity beyond simple layer 
 \label{fig:layer_control}
 \end{figure}
 
-Under $F$-testing, adding the routing descriptors significantly improves the model over layer index alone ($p < 10^{-5}$) across all models, demonstrating massive effect sizes (up to Cohen's $f^2 = 4.56$ for Pythia-160M), as illustrated in Figure~\ref{fig:layer_control}. This is consistent with the hypothesis that structural routing descriptors explain a substantial portion of the observed variance in attention-head necessity beyond layer layout priors.
+Under $F$-testing, adding the routing descriptors significantly improves the model over layer index alone ($p < 10^{-5}$) across all models, demonstrating massive effect sizes (up to Cohen's $f^2 = 4.56$ for Pythia-160M), as illustrated in Figure~\ref{fig:layer_control}. This is consistent with the hypothesis that structural routing descriptors explain a substantial portion of the variance in experimentally measured attention-head necessity beyond layer layout priors.
 
 \subsection{Negative Control Shuffling Experiments}
 To demonstrate that the explanatory signal is driven strictly by the network graph topology, we ran a negative control where head indices and centrality values were randomly shuffled.
@@ -635,7 +635,7 @@ The high Pearson correlation relative to the Spearman correlation on Pythia-70M 
 \subsection{Calibration Prompt Sensitivity}
 Averaging over 3 calibration prompts acts as a \textbf{variance filter}, successfully suppressing prompt-specific variance, increasing the correlation between individual prompt outcomes and the stabilized routing estimate from $\approx 0.12$ to $\approx 0.60$.
 
-\paragraph{Takeaway.} Causal damage regressions prove that structural routing centralities carry highly significant explanatory signal for attention head necessity beyond layer depth control and shuffling baselines.
+\paragraph{Takeaway.} Causal damage regressions provide evidence that structural routing centralities carry highly significant explanatory signal for attention head necessity beyond layer depth control and shuffling baselines.
 
 % ═════════════════════════════════════════════════════════════════════════════
 \section{Application: Downstream Head Pruning via FLOOD}
@@ -717,13 +717,13 @@ We evaluate the structural overlap between the baseline and pruned networks at a
 \end{figure}
 
 \subsection{Computational and Resource Efficiency}
-Importantly, RIE descriptors are cheap to compute once the dependency matrix is extracted. Table~\ref{tab:latency} compares scoring latencies against the Gradient-Taylor benchmark. RIE combines centrality computation in \textbf{51.26 ms}, representing a \textbf{$40\times$ speedup} over Gradient-Taylor (2038.90 ms) which requires costly backward passes.
+Importantly, RIE descriptors are cheap to compute once the dependency matrix is extracted (Table~\ref{tab:latency}).
 
 \paragraph{Takeaway.} Guided by RIE centrality, the FLOOD pruning algorithm preserves downstream perplexity up to $31\times$ better than magnitude baselines while maintaining representational subspace and routing hub topology.
 
 \begin{table}[h]
 \centering
-\caption{Online scoring latency (ms) comparison between Gradient-Taylor and our RIE scoring method. Latencies are measured on a standard CPU for scoring all 144 attention heads. RIE computes recursive centralities in \textbf{51.26 ms}, representing a \textbf{$40\times$ speedup} over Gradient-Taylor (2038.90 ms) which requires running backward passes to accumulate gradients. This shows that RIE is highly practical for real-time pruning decisions once the dependency matrix is cached.}
+\caption{Online scoring latency (ms) for all 144 attention heads on a standard CPU. RIE computes recursive centralities in \textbf{51.26 ms}, a \textbf{$40\times$ speedup} over Gradient-Taylor (2038.90 ms), which requires backward passes to accumulate gradients; RIE is thus practical for real-time pruning decisions once the dependency matrix is cached.}
 \label{tab:latency}
 \begin{tabular}{lc}
 \toprule
