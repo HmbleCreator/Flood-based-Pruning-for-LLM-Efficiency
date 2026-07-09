@@ -1,42 +1,95 @@
-# Research State: Flood-Based Pruning for LLM Efficiency
+# Research State: Adaptive RIE (Bucket B — new research)
 
 ## Current Stage
-SYNTHESIZE (all three papers complete + Phase 6 polish done; release prep in progress)
+COMPUTE (CPU Steps 1-4 DONE) — RESULT: H1 FALSIFIED (negative finding). GPU Step 5 NOT warranted.
 
-## Trilogy (all COMPLETE, polished through Phase 6 — commit `33f4f83`)
-- **Paper 1 — Invisible Bridges** (`paper/invisible_bridges.tex`): low-weight "bridge" heads missed by Wanda; 213x damage ratio; confounders ruled out; downstream amplification; domain-conditional scores.
-- **Paper 2 — Conserved Perturbation Geometry** (`paper/conserved_perturbation_geometry.tex`): perturbations collapse onto a shared low-dimensional subspace (PR ~1.1–3.2 vs shuffled 2.7–11.5; v1 alignment 0.935–0.976); bridge heads = amplitude injectors.
-- **Paper 3 — Estimating Routing Importance** (`paper/estimating_routing_importance.tex`): RIE centralities explain up to 80.2% of causal-damage variance (p<1e-5 beyond layer depth; shuffle R2<1.3%); FLOOD pruning preserves perplexity 31x better than magnitude.
+## Key Finding (2026-07-09, real cached data)
+The simple Adaptive-RIE premise (alpha_bcast rises with lambda2) is CONTRADICTED by data:
+- OPT-125M (lambda2=2.82, HIGHER) -> Betweenness-dominant
+- Pythia-160M (lambda2=2.32, LOWER) -> Broadcast-dominant
+=> non-monotonic in BOTH lambda2 and Q. Best lambda2-threshold fit = 67% on 3 training
+models; 2-feature logistic is non-separable. Simple alpha(lambda2,Q) CANNOT predict the
+optimal descriptor. This is a legitimate NEGATIVE result (falls under reasoning.md fallback).
+Implication: routing->function mapping is richer than a 2-stat spectral summary; adaptive
+weighting needs either the full centrality spectrum / rich-club, or the per-model OLS beta
+coefficients (Betweenness beta already tracks OPT's betweenness optimum), not lambda2/Q.
 
-## Phase 6 polish (DONE — commit `33f4f83`)
-- Tightened hedging: "prove that"->"provide evidence that"; 3x "confirming that"->"consistent with"; "explain causal damage"->"explain variance in experimentally measured causal damage".
-- Reduced latency repetition (Paper 3): removed duplicated 51.26ms/40x figure.
-- Added explicit one-question-per-paper "\paragraph{Why this paper?}" to all three.
-- Fixed broken sentence (Paper 1 entropy discussion) + tangled null-baseline sentence (Paper 2).
+## Program Roadmap (5-paper progression — updated per colleague review)
+Papers 1-3 answer **what** (empirical discovery). The colleague's framing: the next
+papers should answer **why** (hypothesis-driven theory).
+- Paper 1 — Invisible Bridges: WHAT heads are important? (done)
+- Paper 2 — Conserved Perturbation Geometry: WHAT geometric structure? (done)
+- Paper 3 — Estimating Routing Importance: WHAT graph topology explains importance? (done)
+- Bucket B (Adaptive RIE): engineering refinement of Paper 3 — makes FLOOD zero-tuning.
+  Still a "what works" contribution; does NOT answer "why".
+- **Paper 4 (proposed, strategic): "Emergence of Routing Structure During Transformer
+  Optimization"** — answers WHY routing backbones emerge. Hypothesis-driven. Central
+  hypothesis: gradient-based optimization converges toward reusable routing pathways
+  because reuse is more efficient than constructing independent flows. Five falsifiable
+  predictions: (1) routing emerges during training; (2) convergence across random seeds
+  (attractor); (3) systematic scaling laws (lambda2 up, Q down, rich-club denser with scale);
+  (4) perturb-and-recover (backbone is an optimization attractor); (5) architecture
+  independence (GPT-2/Pythia/Qwen/Gemma/Llama converge to similar routing).
+  NOTE: Paper 4 needs training-from-scratch checkpoints across seeds/architectures —
+  far larger compute than Bucket B. Deferred until Bucket B lands and budget is set.
 
-## Naming reconciliation (important)
-The `future/*.md` proposal docs use OLD roadmap names that were SUPERSEDED:
-- `future/paper3_routing_mechanisms.md` ("Routing Mechanisms") -> its content (dependency graph, PageRank, communities) is now embedded in Paper 3 (`estimating_routing_importance.tex`), which is COMPLETE.
-- The only item from that old roadmap NOT yet executed: `src/paper3_routing/extract_dependency_graph.py` on **GPT-2 Small** specifically (run on Pythia-70M/160M, OPT-125M, GPT-2 Medium). Not required for the trilogy — Paper 3 already has GPT-2 Small dependency network + PageRank figures.
+## Research Question (Bucket B — Adaptive RIE, CURRENT TASK)
+Can the RIE combination weights alpha_i be predicted from a model's global routing-graph
+statistics (algebraic connectivity lambda2, modularity Q) so that FLOOD automatically
+selects the right structural descriptor per architecture — without per-model tuning?
 
-## Bucket C (release prep I can do) — DONE
-- `REPRODUCIBILITY.md`: run order, script index, cached-data notes, compile instructions.
-- `requirements.txt`: real deps (numpy, torch, transformers, matplotlib, scipy, statsmodels, networkx).
-- Read-aloud pass: fixed 2 awkward sentences.
+## Why this is the right next step (from Bucket B)
+Paper 3 already lists this as Future Work (Eq. 7): alpha_i = alpha_i(Q, lambda2). The
+walkthrough component-ablation table shows the optimal descriptor is architecture-dependent:
+- Broadcast-Only wins on GPT-2 Medium (60.35) and Pythia-160M (74.35)
+- Betweenness-Only wins on OPT-125M (75.92)
+The fixed full FLOOD (f_bet + f_bcast) is only best on GPT-2 Medium; on OPT/Pythia-160M
+a single descriptor beats it. Adaptive weighting turns this limitation into a result.
 
-## Bucket A (release — needs user)
-- 6.5 External review (ML PhD / prof / engineer): "where did you stop understanding?"
-- 6.7 arXiv upload + GitHub release + reproducibility package zip.
-- Repo already tagged `v1.0.0-paper`. Source verified to compile on Overleaf.
+## Key Decisions
+- (SCOPE): Reuse cached dependency matrices + centralities for 5 models — NO 2h/model re-extraction.
+- (SCOPE): Fit alpha(lambda2, Q) on the 3 models with full component-ablation PPL
+  (OPT, GPT-2 Medium, Pythia-160M); validate on held-out models (Pythia-70M, GPT-2 Small).
 
-## Bucket B (genuine new research — deferred, not started)
-1. **Adaptive RIE** (Paper 3 Future Work, Eq. 7): make alpha_i a function of (Q, lambda2) so FLOOD auto-selects Broadcast-vs-Betweenness per architecture. Uses cached dependency matrices for 5 models — cheap, high value. RECOMMENDED next research step.
-2. Scale-up replication (1B/7B) — biggest validity threat; deferred by user.
-3. Architecture generalization (BERT/T5 encoder-decoder).
-4. MLP-layer routing graphs.
+## Available cached data (verified)
+- Dependency matrices: gpt2, gpt2_medium, facebook_opt_125m, eleutherai_pythia_70m/160m
+- Centralities: pagerank_rev (Broadcast), pagerank (Receiver), injector_scores, receiver_scores
+- Graph stats (Paper 3 Table 1): lambda2, Q per model
+- Component-ablation PPL (walkthrough Sec 9): Betweenness/Broadcast/FLOOD-Simplified/FLOOD-Full
 
-## Key numbers (from walkthrough.md, all traced to logs)
-- FLOOD 31x better than magnitude @30% on GPT-2 Medium (51.28 vs 1594.18 PPL).
-- OLS R2: GPT-2 Small 23.5%, OPT-125M 65.4%, Pythia-160M 80.2%.
-- Shuffle R2 < 1.3%. OOD transfer rho=0.469 (p=0.0008).
-- Topology preservation @30%: subspace align FLOOD 0.99 vs Magnitude 0.73; hub overlap 100% vs 20%.
+## Component-ablation PPL (cached)
+| Metric        | GPT-2 Med | OPT-125M | Pythia-160M | best        |
+|---------------|-----------|----------|-------------|-------------|
+| Baseline      | 38.23     | 59.03    | 50.52       |             |
+| Betweenness-O | 276.46    | 75.92    | 87.27       | OPT best    |
+| Broadcast-O   | 60.35     | 130.86   | 74.35       | Med, Pythia |
+| FLOOD-Simple  | 128.52    | 86.42    | 82.81       |             |
+| FLOOD-Full    | 51.28     | 97.51    | 96.79       | Med best    |
+
+## Graph stats (Paper 3 Table 1)
+| Model         | N   | lambda2 | Q      | Dominant      |
+|---------------|-----|---------|--------|---------------|
+| GPT-2 Small   | 144 | 3.8539  | 0.0495 | Broadcast-Only|
+| OPT-125M      | 144 | 2.8196  | 0.0609 | Bridge-Only   |
+| Pythia-160M   | 144 | 2.3169  | 0.0920 | Broadcast-Only|
+| Pythia-70M    | 48  | 1.7978  | 0.0946 | Mixed         |
+
+## Hypothesis H1
+alpha_bcast increases with lambda2 (cohesive graphs -> global sources dominate);
+alpha_bet increases with Q (modular graphs -> local bottlenecks matter).
+A simple function alpha(lambda2, Q) reproduces each model's known optimal descriptor
+and yields <= FLOOD-Full PPL on held-out models.
+
+## Experiment Log
+| Attempt | Method | Result | Status |
+|---------|--------|--------|--------|
+
+## Critique History
+- Pre-COMPUTE: pending
+- Post-COMPUTE: pending
+
+## Artifacts
+- literature-review.md: pending
+- reasoning.md: pending
+- methodology.md: pending
+- figures/: pending
