@@ -1,0 +1,125 @@
+# The Routing Hypothesis: A Unified Research Program
+
+This document serves as the master conceptual synthesis and scientific roadmap for the investigation into **Information Routing in Autoregressive Transformers**. It unifies the empirical results, structural findings, and theoretical formulations from **Research Program 1 (Routing Discovery & FLOOD)**, catalogs unresolved anomalies, and outlines the hypothesis-driven direction for **Research Program 2 (Emergence & Theory)**.
+
+---
+
+## 1. Executive Summary & The Routing Hypothesis
+
+### 1.1 The Core Paradigm Shift
+Traditional mechanistic interpretability and pruning frameworks view transformers through the lens of **Feature Representation**:
+* Individual attention heads are analyzed as "detectors" of semantic features (e.g., induction, indirect objects, syntax).
+* Pruning algorithms rank heads by weight magnitude (Magnitude) or local gradient activation (Wanda, Taylor-expansion) under the assumption that activation size corresponds to causal importance.
+
+The **Routing Hypothesis** proposes a fundamental paradigm shift from feature representation to **Information Topology**:
+> **The Routing Hypothesis**: Autoregressive transformers do not merely compute static token features; they optimize a dynamic, sparse routing network—a communication backbone—over attention heads. Individual heads act as routers that coordinate the flow of information across layers. Causal damage (perplexity increase) from head ablation is not a function of the local feature magnitude computed by that head, but rather the topological sensitivity of the downstream routing network to the head's removal.
+
+```
+Feature Paradigm:       [Input] → [Head (Feature Detector)] → [Output]
+                                  (Ranked by Weight/Activation Size)
+
+Routing Paradigm:       [Input] → [Head (Router Node)] ────┐
+                                        ↓                  │
+                                  [Conserved Subspace] ────┼→ [Downstream Hubs] → [Output]
+                                        ↓                  │
+                                  [Graph Centrality] ──────┘
+                                  (Ranked by Topological Flow)
+```
+
+---
+
+## 2. Pillars of Program 1 (The Trilogy)
+
+Research Program 1 focused on the **observation, measurement, validation, and exploitation** of the routing network. It is structured around three core scientific pillars, each corresponding to a major manuscript.
+
+### Pillar 1: Invisible Bridges (Paper 1)
+* **Question**: *Can low-weight attention heads be causally indispensable to a transformer's generation capability?*
+* **Discovery**: We identified "Invisible Bridge Heads"—primarily in Layer 0 of GPT-2 and Pythia models—that possess near-minimal weight magnitudes (completely invisible to magnitude-based and activation-based pruning like Wanda) but cause catastrophic, model-wide perplexity increases when ablated.
+* **Key Finding**: In GPT-2 Small, ablating Group A (invisible bridges) caused a **213×** larger perplexity increase than ablating Group B (Wanda-matched controls):
+  $$\text{damage}(A) = 32.7 \text{ PPL} \quad \text{vs.} \quad \text{damage}(B) = 0.15 \text{ PPL}$$
+* **Confounders Ruled Out**:
+  1. *Layer-0 Position Confound*: Layer-0 heads with low bridge scores were ablated and showed near-zero damage (mean **0.4%** perplexity change on GPT-2 Medium), proving that layer placement alone does not explain the damage.
+  2. *Attention Sink Confound*: Some bridge heads exhibit high attention to the BOS token (position 0), but their representation sensitivity profiles remain highly task-dependent, distinguishing them from rigid structural sinks.
+
+### Pillar 2: Conserved Perturbation Geometry (Paper 2)
+* **Question**: *Do head ablations cause random, model-wide feature corruption, or do their downstream perturbations lie on a shared, structured manifold?*
+* **Discovery**: Downstream representations under ablation do not degrade chaotically. Instead, the representation shifts caused by ablating different bridge heads project onto a shared, low-rank, highly aligned subspace (conserved perturbation geometry).
+* **Takeaway**: Bridge heads act as amplitude injectors that drive signals along a conserved routing manifold. When a bridge is removed, the signal falls off this manifold, causing downstream layers to receive out-of-distribution inputs that cascade into generation failure.
+
+### Pillar 3: Estimating Routing Importance (Paper 3)
+* **Question**: *Can the causal importance of attention heads be predicted prospectively from the network topology of the attention graph?*
+* **Discovery**: We formalize the transformer as a directed, weighted graph where attention heads are nodes and attention patterns act as adjacency matrices.
+* **Centrality Mapping**: Graph centrality metrics explain up to **80.2%** of the variance in causal head damage:
+  * **Broadcast Centrality** measures a node's capacity to distribute information to downstream layers.
+  * **Receiver Centrality** measures a node's capacity to aggregate upstream information.
+* **FLOOD Framework**: By combining these topological centralities, the **FLOOD** pruning framework preserves model perplexity significantly better than standard pruning. At 30% pruning budget on GPT-2 Medium, FLOOD preserves perplexity **31× better** than magnitude pruning:
+  $$\text{PPL}_{\text{FLOOD}} = 51.28 \quad \text{vs.} \quad \text{PPL}_{\text{Magnitude}} = 1594.18$$
+
+---
+
+## 3. Scientific Grounding & Evidence Matrix
+
+To establish a clear baseline of what has been empirically verified versus what remains theoretical, the core claims of Program 1 are mapped below.
+
+| Claim | Type | Empirical Evidence | Validation Status |
+| :--- | :--- | :--- | :--- |
+| **Causal Bridges Exist** | Empirical Fact | Ablation of low-weight Layer-0 heads causes catastrophic perplexity spikes. | **Verified** (GPT-2 Small, GPT-2 Medium, Pythia-70M, Pythia-160M, OPT-125M) |
+| **Independence from Wanda** | Empirical Fact | Pearson correlation $r(\text{Wanda}, \text{Bridge}) \approx -0.05$ (Small) to $+0.32$ (Medium). | **Verified** (All 5 evaluated models) |
+| **Dynamic Centrality Predictability** | Empirical Fact | Ordinary Least Squares (OLS) regression mapping centralities to damage achieves $R^2 \in [0.65, 0.80]$ on OPT/Pythia. | **Verified** on OPT-125M ($R^2=65.4\%$), Pythia-70M ($R^2=71.5\%$), Pythia-160M ($R^2=80.2\%$). |
+| **Subspace Alignment** | Empirical Fact | Ablation perturbation vectors are highly collinear, sharing a low-rank downstream subspace. | **Verified** (Paper 2 empirical evaluations) |
+| **Representational Shift is Causal** | Hypothesis | Downstream representational sensitivity directly causes task degradation. | **Supported** by high correlation with downstream task completion probes. |
+| **Linear Centrality Mapping** | Hypothesis | Topological centralities map linearly to causal head damage. | **Partially Falsified**; fails on GPT-2 Medium ($R^2 = 7.9\%$), suggesting nonlinear scaling. |
+
+---
+
+## 4. Unresolved Anomalies & Limitations Registry
+
+### 4.1 The Attention Sink Ambiguity
+* **Description**: True bridge heads route semantic information. However, some candidate heads assign $>90\%$ attention to position 0 (BOS). These heads may function as structural attention sinks (routing garbage or overflow attention) rather than active routers.
+* **Status**: Unresolved. While task-dependent representation variance suggests semantic routing, a subset of bridge heads may be structural side-effects of Softmax normalization.
+
+### 4.2 The GPT-2 Medium $R^2$ Anomaly
+* **Description**: While graph centrality regression predicts up to 80% of damage variance on Pythia and OPT, it explains only **7.9%** on GPT-2 Medium, yielding a negative coefficient for Broadcast Centrality.
+* **Implications**: The linear centrality-to-damage mapping is scale-dependent. In larger models with more redundant layers (24 layers, 384 heads), information routing becomes highly non-linear or multi-path, violating the single-node centrality assumption. This points to the need for path-based or flow-based graph metrics in Paper 4+.
+
+### 4.3 Predictiveness vs. Pruning Performance
+* **Description**: Broadcast Centrality dominates the regression coefficients ( $\beta_{\text{broadcast}} \approx 0.86$ to $0.91$ ) across all models, but OPT's best pruning performance comes from Betweenness-Only pruning.
+* **Theoretical Resolution**:
+  * Regression $\beta$ answers: *"Which individual heads are most important?"* (Broadcast hubs).
+  * Pruning answers: *"Which set of heads can be removed without collapsing the network?"*
+  * In highly bottlenecked architectures (like OPT), Broadcast hubs are so critical that removing them collapses the network. Pruning must therefore protect Broadcast hubs and instead remove redundant intermediate routers (Betweenness paths).
+
+---
+
+## 5. Program 2 Roadmap: Emergence & Theory
+
+Research Program 2 shifts the scientific inquiry from *how to measure routing* to **why routing backbones emerge during training**.
+
+```
+                   PROGRAM 2: THE ROADMAP TO EMERGENCE
+                   
+      [Hypothesis]  →  Optimization prefers reusable communication paths
+                            ↓
+      [Predictions] →  1. Routing backbone stabilizes early in training
+                       2. Weight decay penalizes non-routing heads into "bridges"
+                       3. Gradient flow concentrates along centrality pathways
+                            ↓
+      [Experiments] →  1. Track centrality metrics across training epochs
+                       2. Ablate checkpoints during training (causal dynamics)
+                       3. Vary weight decay / initialization seeds
+```
+
+### 5.1 The Core Emergence Hypotheses
+We propose three testable hypotheses for why transformers organize into sparse routing graphs:
+1. **The Pathway Reuse Hypothesis**: Optimization dynamics naturally prefer routing signals through a fixed, reusable set of communication hubs (Bridges) to minimize representation drift across epochs.
+2. **The Norm-Penalization (Bridge-Forming) Hypothesis**: Weight decay actively penalizes attention head projections. Heads that compute redundant features are pushed to zero weight, but heads that form critical routing nodes cannot be discarded, resulting in low-weight, high-sensitivity "bridges."
+3. **The Spectral Bias Hypothesis**: Transformers learn low-frequency routing structures (broad connectivity) in the first phase of training, and high-frequency semantic features (local heads) in the second phase.
+
+### 5.2 Proposed Experimental Protocol (Paper 4 Design)
+* **Model Training**: Train a series of small transformers (e.g., 50M to 125M parameters) from scratch on a curated corpus (e.g., SlimPajama) under controlled settings.
+* **Checkpoint Tracking**: Save high-frequency checkpoints (e.g., every 500 gradient steps) during training.
+* **Dynamic Centrality Auditing**:
+  * Track the evolution of $\lambda_2$ (algebraic connectivity) and Modularity ($Q$) over training time.
+  * Measure at what step the "Invisible Bridge" heads differentiate from standard heads.
+  * Perform causal ablations at each checkpoint to map the emergence of downstream representation sensitivity.
+* **Ablation Dynamics**: Test if training is disrupted or redirected if bridge paths are dynamically ablated *during* the training run.
