@@ -34,3 +34,10 @@ ENV/
 .DS_Store
 Thumbs.db
 
+# Extracted workflow duplicate
+openscience-workflow/
+.agents/
+agents/
+AGENTS.md
+templates/
+.gitignore

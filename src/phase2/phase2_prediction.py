@@ -127,25 +127,25 @@ EVAL = {
 
 COMPLETION_PROBES_V2 = {
     "code": [                          # Syntactically determined
-        ("def square(x):\n    return x * ", "x"),
-        ("for i in range(10):\n    total += ", "i"),
-        ("if x > 0:\n    return ", "x"),
-        ("while not done:\n    done = ", "True"),
-        ("x = [1, 2, 3]\nprint(len(", "x"),
+        ("def square(x):\n    return x *", "x"),
+        ("for i in range(10):\n    total +=", "i"),
+        ("if x > 0:\n    return", "x"),
+        ("while not done:\n    done =", "True"),
+        ("x = [1, 2, 3]\nprint(len(x", ")"),
     ],
     "narrative": [                     # Common literary continuation
-        ("It was a dark and stormy ", "night"),
-        ("The stars shone brightly in the ", "sky"),
-        ("She opened the door and walked ", "in"),
-        ("They arrived just in ", "time"),
-        ("The old clock on the wall began to ", "chime"),
+        ("It was a dark and stormy", "night"),
+        ("The stars shone brightly in the", "sky"),
+        ("She opened the door and walked", "in"),
+        ("They arrived just in", "time"),
+        ("The old clock on the wall began to", "chime"),
     ],
     "formulaic": [                     # Famous phrases — near-deterministic for GPT-2
-        ("To be or not to ", "be"),
-        ("Once upon a ", "time"),
-        ("The quick brown fox jumps over the lazy ", "dog"),
-        ("All that glitters is not ", "gold"),
-        ("It was the best of times, it was the worst of ", "times"),
+        ("To be or not to", "be"),
+        ("Once upon a", "time"),
+        ("The quick brown fox jumps over the lazy", "dog"),
+        ("All that glitters is not", "gold"),
+        ("It was the best of times, it was the worst of", "times"),
     ],
 }
 
@@ -589,7 +589,7 @@ def hypothesis_ladder(h09_verdict, sink_variance_results, completion_ran):
     print('   attention sink behavior, exhibit domain-selective damage')
     print('   fingerprints, and can be identified prospectively by a')
     print('   downstream representation sensitivity score."')
-    print("═" * 65)
+    print("=" * 65)
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────

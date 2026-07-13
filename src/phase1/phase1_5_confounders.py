@@ -113,28 +113,28 @@ EVAL = {
 
 # -- Capability completion probes ----------------------------------------------
 # (prompt, expected_first_token_of_continuation)
-# Chosen for single-token, unambiguous completions
+# Chosen for single-token, unambiguous completions with high baseline accuracy on GPT-2 Small
 COMPLETION_PROBES = {
     "code": [
-        ("def add(a, b):\n    return a + ", "b"),
-        ("x = [1, 2, 3]\nprint(len(", "x"),
-        ("for i in range(10):\n    print(", "i"),
-        ("import os\npath = os.path.join(", "'"),
-        ("if __name__ == '__main__':\n    main(", ")"),
+        ("def square(x):\n    return x *", "x"),
+        ("for i in range(10):\n    total +=", "i"),
+        ("if x > 0:\n    return", "x"),
+        ("while not done:\n    done =", "True"),
+        ("x = [1, 2, 3]\nprint(len(x", ")"),
     ],
     "math": [
-        ("2 + 2 = ", "4"),
-        ("10 - 3 = ", "7"),
-        ("3 * 4 = ", "12"),
-        ("100 / 10 = ", "10"),
-        ("The square root of 25 is ", "5"),
+        ("2 + 2 =", "4"),
+        ("1 + 1 =", "2"),
+        ("5 - 3 =", "2"),
+        ("5 + 5 =", "10"),
+        ("10 - 5 =", "5"),
     ],
     "language": [
-        ("The capital of France is ", "Paris"),
-        ("The sun rises in the ", "east"),
-        ("A year has twelve ", "months"),
-        ("The largest planet in the solar system is ", "Jupiter"),
-        ("Water consists of hydrogen and ", "oxygen"),
+        ("Once upon a", "time"),
+        ("To be or not to", "be"),
+        ("The quick brown fox jumps over the lazy", "dog"),
+        ("She opened the door and walked", "in"),
+        ("They arrived just in", "time"),
     ],
 }
 
@@ -290,7 +290,7 @@ def layer0_low_bridge_controls(base_model, tokenizer):
     n_heads    = base_model.config.n_head
     quick      = ALL_PROBES[:6]   # faster scan
 
-    print("  Scanning bridge scores for all 12 Layer-0 heads...")
+    print(f"  Scanning bridge scores for all {n_heads} Layer-0 heads...")
     bridge_l0 = {}
     for h in range(n_heads):
         score = bridge_score_single(base_model, tokenizer, quick, 0, h)
