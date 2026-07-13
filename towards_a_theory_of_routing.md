@@ -1,4 +1,4 @@
-# The Routing Hypothesis: A Unified Research Program
+# Towards a Theory of Routing in Transformers
 
 This document serves as the master conceptual synthesis and scientific roadmap for the investigation into **Information Routing in Autoregressive Transformers**. It unifies the empirical results, structural findings, and theoretical formulations from **Research Program 1 (Routing Discovery & FLOOD)**, catalogs unresolved anomalies, and outlines the hypothesis-driven direction for **Research Program 2 (Emergence & Theory)**.
 
@@ -59,16 +59,15 @@ Research Program 1 focused on the **observation, measurement, validation, and ex
 
 ## 3. Scientific Grounding & Evidence Matrix
 
-To establish a clear baseline of what has been empirically verified versus what remains theoretical, the core claims of Program 1 are mapped below.
+To establish a clear baseline of what has been empirically verified versus what remains theoretical, we categorize the core claims of our research program below by their evidence level and scientific confidence.
 
-| Claim | Type | Empirical Evidence | Validation Status |
+| Claim | Evidence Level | Confidence | Key Supporting Evidence / Limitations |
 | :--- | :--- | :--- | :--- |
-| **Causal Bridges Exist** | Empirical Fact | Ablation of low-weight Layer-0 heads causes catastrophic perplexity spikes. | **Verified** (GPT-2 Small, GPT-2 Medium, Pythia-70M, Pythia-160M, OPT-125M) |
-| **Independence from Wanda** | Empirical Fact | Pearson correlation $r(\text{Wanda}, \text{Bridge}) \approx -0.05$ (Small) to $+0.32$ (Medium). | **Verified** (All 5 evaluated models) |
-| **Dynamic Centrality Predictability** | Empirical Fact | Ordinary Least Squares (OLS) regression mapping centralities to damage achieves $R^2 \in [0.65, 0.80]$ on OPT/Pythia. | **Verified** on OPT-125M ($R^2=65.4\%$), Pythia-70M ($R^2=71.5\%$), Pythia-160M ($R^2=80.2\%$). |
-| **Subspace Alignment** | Empirical Fact | Ablation perturbation vectors are highly collinear, sharing a low-rank downstream subspace. | **Verified** (Paper 2 empirical evaluations) |
-| **Representational Shift is Causal** | Hypothesis | Downstream representational sensitivity directly causes task degradation. | **Supported** by high correlation with downstream task completion probes. |
-| **Linear Centrality Mapping** | Hypothesis | Topological centralities map linearly to causal head damage. | **Partially Falsified**; fails on GPT-2 Medium ($R^2 = 7.9\%$), suggesting nonlinear scaling. |
+| **Bridge heads exist** | Strong | High | Ablation of low-weight Layer-0 heads causes catastrophic perplexity spikes (e.g., 213× Group A/B damage ratio in GPT-2 Small), which cannot be explained by layer position alone. |
+| **Perturbations occupy a shared routing subspace** | Strong | High | Downstream representation shift vectors under different bridge ablations project onto a highly aligned, low-rank conserved manifold (Paper 2). |
+| **Centrality predicts damage in several small/medium decoder models** | Strong | High | Ordinary Least Squares (OLS) centrality regression explains up to 80.2% of damage variance on Pythia-160M, 71.5% on Pythia-70M, and 65.4% on OPT-125M. |
+| **Routing graph approximates computation** | Moderate | Medium | Graph centrality metrics correlate significantly with causal damage. However, the model is highly scale-dependent, failing on GPT-2 Medium ($R^2 = 7.9\%$). |
+| **Routing is the optimization objective** | Speculative | Low | Theoretical conjecture that network sparsification and path stabilization are natural attractors during SGD optimization. Requires validation in Program 2. |
 
 ---
 
@@ -88,6 +87,14 @@ To establish a clear baseline of what has been empirically verified versus what 
   * Regression $\beta$ answers: *"Which individual heads are most important?"* (Broadcast hubs).
   * Pruning answers: *"Which set of heads can be removed without collapsing the network?"*
   * In highly bottlenecked architectures (like OPT), Broadcast hubs are so critical that removing them collapses the network. Pruning must therefore protect Broadcast hubs and instead remove redundant intermediate routers (Betweenness paths).
+
+### 4.4 Graph Extraction Identifiability & Sensitivity
+* **Description**: The directed attention graph constructed in Paper 3 is one mathematical representation of computation flow, but its uniqueness and robustness are untested.
+* **Critical Limitations**:
+  * *Perturbation Magnitude*: We define graph edges based on linear representation sensitivity to full ablation. If we perturb heads partially (e.g., scaling weights by 0.5 rather than 0.0), the resulting sensitivity graph may shift, indicating that the graph topology is state-dependent.
+  * *Metric Sensitivity*: Using L2 representation shift to construct edge weights is intuitive, but alternative metrics (such as cosine similarity of token representations or gradient-based Jacobians) might yield different PageRank/centrality orderings.
+  * *Sparsification Thresholds*: The graph construction relies on thresholding small edge weights to induce sparsity. The stability of centrality rankings under different threshold ranges remains unquantified.
+  * *Identifiability*: The extracted routing graph is a functional approximation of model dependency, not a uniquely identifiable physical circuit. It should be presented as a useful diagnostic model rather than the ground-truth physical wiring of the transformer.
 
 ---
 
