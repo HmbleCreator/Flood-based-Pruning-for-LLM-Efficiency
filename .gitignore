@@ -36,8 +36,7 @@ Thumbs.db
 
 # Extracted workflow duplicate
 openscience-workflow/
-.agents/
-agents/
-AGENTS.md
-templates/
-.gitignore
+
+# Generated figures at root
+small_phase*.png
+medium_phase*.png

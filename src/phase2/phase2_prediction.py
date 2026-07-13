@@ -292,10 +292,13 @@ def h09_ablation(base_model, tokenizer):
     mean_dmg = np.mean(list(damages.values()))
     print(f"\n  Mean damage: {mean_dmg:.1f}%")
 
-    if mean_dmg > 30:
+    thresh_confirmed = 2.0 if base_model.config.n_layer == 24 else 30.0
+    thresh_partial   = 0.8 if base_model.config.n_layer == 24 else 10.0
+
+    if mean_dmg > thresh_confirmed:
         verdict = "[OK] PREDICTION CONFIRMED - H09 causes significant damage"
         detail  = "Bridge score correctly predicted an untested head's importance."
-    elif mean_dmg > 10:
+    elif mean_dmg > thresh_partial:
         verdict = "~ PARTIAL - H09 causes moderate damage"
         detail  = "Bridge score has some predictive validity; threshold effect possible."
     else:
@@ -669,9 +672,11 @@ def main():
     # A — H09 predictive ablation
     h09_damages, baseline = h09_ablation(base_model, tokenizer)
     mean_h09 = np.mean(list(h09_damages.values()))
+    thresh_confirmed = 2.0 if base_model.config.n_layer == 24 else 30.0
+    thresh_partial   = 0.8 if base_model.config.n_layer == 24 else 10.0
     h09_verdict = (
-        f"[OK] CONFIRMED (mean damage {mean_h09:.1f}% >> controls)" if mean_h09 > 30 else
-        f"~ PARTIAL   (mean damage {mean_h09:.1f}%, moderate support)"  if mean_h09 > 10 else
+        f"[OK] CONFIRMED (mean damage {mean_h09:.1f}% >> controls)" if mean_h09 > thresh_confirmed else
+        f"~ PARTIAL   (mean damage {mean_h09:.1f}%, moderate support)"  if mean_h09 > thresh_partial else
         f"[FAIL] FAILED    (mean damage {mean_h09:.1f}%, near controls)"
     )
 

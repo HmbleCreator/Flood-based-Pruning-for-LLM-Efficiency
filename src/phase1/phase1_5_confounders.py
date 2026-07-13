@@ -321,9 +321,11 @@ def layer0_low_bridge_controls(base_model, tokenizer):
                   f"(bridge={bridge_l0[h]:.3f})")
 
     mean_damage = np.mean([r["delta_pct"] for r in rows])
+    avg_a = np.mean(list(PHASE1_GROUP_A.values()))
+    avg_b = np.mean(list(PHASE1_GROUP_B.values()))
     print(f"\n  Mean d% for low-Bridge L0 controls: {mean_damage:.1f}%")
-    print(f"  Mean d% for Phase 1 Group A (bridges): ~98%")
-    print(f"  Mean d% for Phase 1 Group B (L4/L7 controls): ~0.4%")
+    print(f"  Mean d% for Phase 1 Group A (bridges): ~{avg_a:.1f}%")
+    print(f"  Mean d% for Phase 1 Group B (controls): ~{avg_b:.1f}%")
 
     if mean_damage < 10:
         verdict = "[OK] LAYER-0 CONFOUND RULED OUT\n     Bridge score predicts damage, layer position alone does not."
@@ -514,9 +516,11 @@ def main():
     args = parser.parse_args()
 
     base_model, tokenizer = load_model(args.model_path)
-    global CANDIDATES
+    global CANDIDATES, PHASE1_GROUP_A, PHASE1_GROUP_B
     if base_model.config.n_layer == 24:
         CANDIDATES = [(2, 12), (6, 1), (7, 2), (22, 2), (22, 13)]
+        PHASE1_GROUP_A = {"code": 2.74, "math": 2.32, "language": 2.34}
+        PHASE1_GROUP_B = {"code": 0.32, "math": 0.88, "language": 0.44}
         print("Detected GPT-2 Medium. Using Medium candidates:", CANDIDATES)
     else:
         print("Detected GPT-2 Small. Using Small candidates:", CANDIDATES)
