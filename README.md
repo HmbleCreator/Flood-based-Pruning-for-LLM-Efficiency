@@ -3,7 +3,7 @@
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![PyTorch 2.0+](https://img.shields.io/badge/PyTorch-2.0+-ee4c2c.svg)](https://pytorch.org/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![License: Proprietary / Research Only](https://img.shields.io/badge/License-Research_Only-red.svg)](LICENSE)
 [![Status: Research Program 1 Frozen](https://img.shields.io/badge/Status-Program_1_Frozen-success.svg)](FINAL_PROJECT_REPORT.md)
 [![Evaluated Models: 70M to 2.5B](https://img.shields.io/badge/Evaluated_Models-70M_to_2.5B-purple.svg)](FINAL_PROJECT_REPORT.md)
 
@@ -12,6 +12,10 @@ This repository contains the official implementation, experimental artifacts, an
 We challenge the foundational assumption of parameter-magnitude compression: **that an attention head's weight magnitude proxies its causal importance.** Across 6 model families (GPT-2, Pythia, OPT, SmolLM, Qwen2.5, Gemma-2B), we demonstrate that transformers do not operate as collections of isolated semantic feature detectors. Instead, they self-organize into a **directed information routing topology** where low-weight "invisible" bridge heads coordinate signal flow into a **globally conserved, low-dimensional perturbation manifold**.
 
 Translating these geometric insights into structured compression, our topological pruning algorithm **FLOOD** preserves language modeling perplexity up to **$31\times$ better** than magnitude pruning on GPT-2 Medium (51.28 vs 1594.18 PPL at 30% budget) while requiring zero backward-pass gradients during inference scoring.
+
+> [!IMPORTANT]
+> **Proprietary Research & Knowledge License Notice**:
+> This repository, its underlying algorithms (including FLOOD, RIE, and Bridge Head metrics), precomputed matrices, and experimental frameworks are provided **strictly for knowledge, educational, and academic research purposes**. Any **application, deployment, operational integration, or commercial use** in products, software, or services is **strictly prohibited without prior explicit written permission** from the copyright holder. See [Section 9: License & Permitted Use](#9-license--permitted-use) and [`LICENSE`](LICENSE).
 
 ---
 
@@ -27,6 +31,7 @@ Translating these geometric insights into structured compression, our topologica
 6. [Repository Structure & Quick Start](#6-repository-structure--quick-start)
 7. [Reproducing the Experiments](#7-reproducing-the-experiments)
 8. [Citation & Manuscripts](#8-citation--manuscripts)
+9. [License & Permitted Use](#9-license--permitted-use)
 
 ---
 
@@ -390,6 +395,31 @@ If you build upon the findings, data matrices, or algorithmic methods of the FLO
   year={2026}
 }
 ```
+
+---
+
+## 9. License & Permitted Use
+
+This repository, source code, precomputed matrices, algorithms (FLOOD, RIE, Bridge Head Analysis), and manuscripts are released under a **Proprietary Research & Knowledge License** (see [`LICENSE`](LICENSE)).
+
+### Permitted vs. Prohibited Uses
+
+| Activity | Status | Notes |
+|---|:---:|---|
+| **Personal Study & Learning** |  **Permitted** | Reading, analyzing, and running code locally for personal education and knowledge. |
+| **Academic & Scientific Research** |  **Permitted** | Non-profit academic research, scientific peer review, and reproducibility analysis. |
+| **Formal Citation & Reference** |  **Permitted** | Citing the manuscripts and findings in scholarly publications. |
+| **Application & Deployment** | ❌ **PROHIBITED** | Deploying, embedding, or integrating into applications, pipelines, or platforms without prior written authorization. |
+| **Commercial Exploitation** | ❌ **PROHIBITED** | Using the algorithms/code for commercial model pruning, commercial services (SaaS), or commercial products without a license. |
+| **Redistribution & Resale** | ❌ **PROHIBITED** | Selling, leasing, sublicensing, or distributing the software or derivatives for commercial gain. |
+
+### Inquiries & Permission for Applications
+
+Any application or deployment of these methods outside non-commercial study and research requires a separate written authorization or commercial license agreement.
+
+To request permission or discuss enterprise/commercial licensing:
+- **Author & Copyright Holder**: Amit Kumar (Humble Creator)
+- **Repository**: [https://github.com/HmbleCreator/Flood-based-Pruning-for-LLM-Efficiency](https://github.com/HmbleCreator/Flood-based-Pruning-for-LLM-Efficiency)
 
 ---
 

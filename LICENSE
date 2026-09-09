@@ -1,21 +1,94 @@
-MIT License
+PROPRIETARY RESEARCH AND KNOWLEDGE LICENSE
+(Source-Available: Educational, Research & Evaluation Use Only)
 
-Copyright (c) 2026 Humble Creator
+Copyright (c) 2026 Amit Kumar (Humble Creator). All rights reserved.
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+IMPORTANT — PLEASE READ CAREFULLY:
+This license governs your access to and use of the software, source code, data matrices, 
+algorithms, manuscripts, and associated documentation files (collectively, the "Software"). 
+By accessing, copying, downloading, or using the Software, you agree to be bound by the terms 
+and conditions of this License. If you do not agree, do not access or use the Software.
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+================================================================================
+1. GRANT OF LIMITED LICENSE (KNOWLEDGE & RESEARCH PURPOSES ONLY)
+================================================================================
+Subject to the terms and restrictions set forth herein, the Copyright Holder grants to 
+you a limited, non-exclusive, non-transferable, revocable, royalty-free license to access, 
+download, inspect, read, and execute the Software SOLELY FOR NON-COMMERCIAL KNOWLEDGE 
+PURPOSES, defined strictly as:
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+  (a) Personal study, education, learning, and theoretical understanding;
+  (b) Academic, non-profit scientific research, peer review, and reproducibility analysis 
+      of the published findings and manuscripts; and
+  (c) Internal experimental verification and non-commercial evaluation.
+
+================================================================================
+2. PROHIBITIONS & RESTRICTIONS (APPLICATION & COMMERCIAL USE PROHIBITED)
+================================================================================
+Except as expressly permitted in Section 1, ALL OTHER USES ARE STRICTLY PROHIBITED. 
+Without limiting the generality of the foregoing, you MUST NOT, directly or indirectly:
+
+  (a) APPLICATION & DEPLOYMENT: Apply, integrate, deploy, embed, or run the Software, 
+      its algorithms (including but not limited to the FLOOD pruning framework, Routing 
+      Importance Estimator / RIE, bridge head identification, or perturbation geometry), 
+      or any derived methods in any production environment, operational pipeline, software 
+      application, customer-facing system, or organizational infrastructure without prior 
+      express written permission from the Copyright Holder;
+
+  (b) COMMERCIAL USE: Exploit the Software, any part thereof, or any derivative works for 
+      any commercial, revenue-generating, or business purpose (including but not limited 
+      to commercial model compression, commercial inference acceleration, offering the 
+      Software as a service (SaaS), consulting services, or bundling with commercial products);
+
+  (c) DISTRIBUTION & SUBLICENSING: Sell, lease, rent, sublicense, assign, redistribute, 
+      or publish the Software or any modifications/derivatives thereof, in source or binary 
+      form, to third parties without prior express written permission from the Copyright Holder;
+
+  (d) PROPRIETARY NOTICES: Remove, alter, obscure, or fail to reproduce the copyright notice, 
+      this License text, or author attributions on any copy or excerpt of the Software;
+
+  (e) REVERSE ENGINEERING FOR APPLICATION: Use knowledge or algorithms derived from the 
+      Software to construct, train, optimize, or serve production models or commercial 
+      applications without prior express written permission.
+
+================================================================================
+3. PERMISSION FOR APPLICATION OR COMMERCIAL USE
+================================================================================
+Any use of the Software or its underlying methods, algorithms, or derivatives outside the 
+scope of Section 1 (including any deployment, commercial use, or application in production 
+systems) requires a separate, written commercial or enterprise licensing agreement signed 
+by the Copyright Holder.
+
+To request permission or licensing inquiries, please contact the author / repository owner:
+  Author: Amit Kumar (Humble Creator)
+  Repository: https://github.com/HmbleCreator/Flood-based-Pruning-for-LLM-Efficiency
+
+================================================================================
+4. CITATION & ATTRIBUTION
+================================================================================
+If you utilize, reference, or build upon the insights, algorithms, data matrices, or findings 
+of this Software for permitted academic research or scientific publications, you must retain 
+all copyright notices and provide formal attribution by citing the corresponding manuscripts 
+as specified in the repository's documentation (README.md).
+
+================================================================================
+5. RESERVATION OF RIGHTS
+================================================================================
+The Software is licensed, not sold. All rights, title, interest, ownership, and intellectual 
+property rights in and to the Software, including but not limited to copyrights, patents, 
+trade secrets, and trademarks, remain exclusively with the Copyright Holder.
+
+================================================================================
+6. DISCLAIMER OF WARRANTIES & LIMITATION OF LIABILITY
+================================================================================
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, 
+INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR 
+PURPOSE, TITLE, AND NONINFRINGEMENT. 
+
+IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, 
+INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT 
+LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; 
+OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN 
+CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY 
+WAY OUT OF THE USE OF OR INABILITY TO USE THIS SOFTWARE, EVEN IF ADVISED OF THE 
+POSSIBILITY OF SUCH DAMAGE.
